@@ -25,6 +25,18 @@ jobs:
         ls -la
         find . -name "gradlew" -type f
       
+    - name: Generate Gradle Wrapper
+      run: |
+        # Download the specified Gradle version
+        wget https://services.gradle.org/distributions/gradle-8.0-bin.zip -P /tmp
+        unzip -d /tmp /tmp/gradle-8.0-bin.zip
+        
+        # Generate the wrapper
+        /tmp/gradle-8.0/bin/gradle wrapper
+        
+        # Verify the wrapper files
+        ls -la
+      
     - name: Grant execute permission for gradlew
       run: chmod +x ./gradlew
       
