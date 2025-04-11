@@ -9,6 +9,8 @@ android {
     compileSdkVersion 34
     buildToolsVersion "34.0.0"
 
+    namespace "com.moneypulse.app"
+
     defaultConfig {
         applicationId "com.moneypulse.app"
         minSdkVersion 24
