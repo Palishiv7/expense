@@ -24,20 +24,43 @@ jobs:
       run: |
         echo "Current directory: $(pwd)"
         ls -la
-    
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+        echo "Searching for gradlew file:"
+        find . -name "gradlew" -type f
+        
+    - name: Setup Gradle
+      run: |
+        # Find gradlew file
+        GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
+        
+        if [ -z "$GRADLEW_PATH" ]; then
+          echo "No gradlew file found, generating wrapper"
+          # Install Gradle
+          wget -q https://services.gradle.org/distributions/gradle-8.0-bin.zip
+          unzip -q gradle-8.0-bin.zip
+          export PATH=$PATH:$(pwd)/gradle-8.0/bin
+          # Generate wrapper in the correct location
+          cd MoneyPulse
+          gradle wrapper
+          cd ..
+          GRADLEW_PATH="./MoneyPulse/gradlew"
+        fi
+        
+        # Make gradlew executable
+        chmod +x "$GRADLEW_PATH"
+        
+        # Save the path for later steps
+        echo "GRADLEW_PATH=$GRADLEW_PATH" >> $GITHUB_ENV
+        
+        echo "Using gradlew at: $GRADLEW_PATH"
       
     - name: Build with Gradle
-      run: ./gradlew build || echo "Build step may have failed but continuing"
+      run: ${{ env.GRADLEW_PATH }} build || echo "Build step may have failed but continuing"
       
     - name: Build Debug APK
-      run: ./gradlew assembleDebug || echo "APK build step may have failed but continuing"
+      run: ${{ env.GRADLEW_PATH }} assembleDebug || echo "APK build step may have failed but continuing"
       
     - name: Debug APK Output Directory
       run: |
-        echo "Checking APK output directory:"
-        ls -la app/build/outputs || echo "Directory not found"
-        ls -la app/build/outputs/apk || echo "Directory not found"
-        ls -la app/build/outputs/apk/debug || echo "Directory not found"
-        find . -name "*.apk" || echo "No APK files found" 
+        echo "Checking APK output directory structure:"
+        find . -name "outputs" -type d | xargs ls -la
+        find . -name "*.apk" -type f 
