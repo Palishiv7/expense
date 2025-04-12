@@ -118,6 +118,23 @@ jobs:
         GRADLEW_ABSOLUTE_PATH=$(realpath "${{ env.GRADLEW_PATH }}")
         echo "Using Gradle wrapper at absolute path: $GRADLEW_ABSOLUTE_PATH"
         
+        # Check if we're in the app subdirectory and move up to project root if needed
+        if [ -d "app" ] && [ ! -f "gradlew" ]; then
+          echo "In app directory, going up to project root"
+          cd ..
+          ROOT_DIR=$(pwd)
+          echo "Now in: $ROOT_DIR"
+          ls -la
+          
+          # Update the GRADLEW_PATH to use the one in project root
+          GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
+          if [ -n "$GRADLEW_PATH" ]; then
+            GRADLEW_ABSOLUTE_PATH=$(realpath "$GRADLEW_PATH")
+            echo "Updated Gradle wrapper path: $GRADLEW_ABSOLUTE_PATH"
+            echo "GRADLEW_PATH=$GRADLEW_PATH" >> $GITHUB_ENV
+          fi
+        fi
+        
         # Run gradle commands
         echo "=== GRADLE PROJECTS ==="
         "$GRADLEW_ABSOLUTE_PATH" projects -Dorg.gradle.java.home=$JAVA_HOME || echo "Project listing failed"
@@ -132,9 +149,17 @@ jobs:
       
     - name: Build Debug APK
       run: |
+        # Navigate to the project root directory first
+        echo "=== LOCATING PROJECT ROOT ==="
+        # Find directory containing gradlew
+        GRADLEW_DIR=$(dirname "${{ env.GRADLEW_PATH }}")
+        echo "Directory containing gradlew: $GRADLEW_DIR"
+        cd "$GRADLEW_DIR"
+        pwd
+        ls -la
+        
         # Convert relative path to absolute
         GRADLEW_ABSOLUTE_PATH=$(realpath "${{ env.GRADLEW_PATH }}")
-        cd "${{ env.PROJECT_DIR }}"
         
         # Show what's in the app directory if it exists
         if [ -d "app" ]; then
