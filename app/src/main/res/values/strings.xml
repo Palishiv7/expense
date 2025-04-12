@@ -2,8 +2,8 @@
     <string name="app_name">MoneyPulse</string>
     <string name="transaction_notification_title">New Transaction Detected</string>
     <string name="transaction_notification_message">Tap to add transaction details</string>
-    <string name="add_transaction">Add Transaction</string>
-    <string name="ignore">Ignore</string>
+    <string name="add_transaction">✓ Add</string>
+    <string name="ignore">✗ Ignore</string>
     <string name="amount">Amount</string>
     <string name="category">Category</string>
     <string name="description">Description</string>

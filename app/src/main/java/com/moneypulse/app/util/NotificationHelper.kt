@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.moneypulse.app.R
@@ -108,6 +109,19 @@ object NotificationHelper {
         // Prepare message text
         val shortMessage = "$formattedAmount spent at $cleanedMerchantName"
         
+        // Create colored action buttons
+        val addTransactionAction = NotificationCompat.Action.Builder(
+            R.drawable.ic_check_circle,
+            context.getString(R.string.add_transaction),
+            addPendingIntent
+        ).build()
+        
+        val ignoreAction = NotificationCompat.Action.Builder(
+            R.drawable.ic_cancel_circle,
+            context.getString(R.string.ignore),
+            ignorePendingIntent
+        ).build()
+        
         // Build notification with standard action buttons
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -117,16 +131,9 @@ object NotificationHelper {
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .addAction(
-                R.drawable.ic_check_circle,
-                context.getString(R.string.add_transaction),
-                addPendingIntent
-            )
-            .addAction(
-                R.drawable.ic_cancel_circle,
-                context.getString(R.string.ignore),
-                ignorePendingIntent
-            )
+            .setColor(Color.parseColor("#4CAF50")) // Green app color
+            .addAction(addTransactionAction)
+            .addAction(ignoreAction)
         
         // Show the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
