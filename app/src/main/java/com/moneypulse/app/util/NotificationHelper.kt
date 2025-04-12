@@ -25,7 +25,7 @@ import java.util.Locale
 object NotificationHelper {
     
     private const val CHANNEL_ID = "transaction_channel"
-    private const val TRANSACTION_NOTIFICATION_ID = 1001
+    const val TRANSACTION_NOTIFICATION_ID = 1001
     
     // Action constants for broadcast receivers
     const val ACTION_ADD_TRANSACTION = "com.moneypulse.app.ADD_TRANSACTION"
