@@ -108,9 +108,4 @@ kapt {
     javacOptions {
         option("-Xmaxerrs", 500)
     }
-}
-
-// Increase memory for kapt tasks
-tasks.withType(org.jetbrains.kotlin.gradle.internal.KaptWithoutKotlincTask) {
-    jvmArgs += ["-Xmx2g"]
 } 
