@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moneypulse.app.data.repository.TransactionRepository
 import com.moneypulse.app.domain.model.TransactionSms
+import com.moneypulse.app.util.PreferenceHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,12 +15,17 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val transactionRepository: TransactionRepository
+    private val transactionRepository: TransactionRepository,
+    private val preferenceHelper: PreferenceHelper
 ) : ViewModel() {
     
     // Monthly spending for the dashboard
     private val _monthlySpending = MutableStateFlow(0.0)
     val monthlySpending: StateFlow<Double> = _monthlySpending.asStateFlow()
+    
+    // User's monthly income
+    private val _monthlyIncome = MutableStateFlow(preferenceHelper.getUserIncome())
+    val monthlyIncome: StateFlow<Double> = _monthlyIncome.asStateFlow()
     
     // Recent transactions to show on home screen
     private val _recentTransactions = MutableStateFlow<List<TransactionSms>>(emptyList())
@@ -54,6 +60,17 @@ class HomeViewModel @Inject constructor(
                 _isLoading.value = false
             }
         }
+        
+        // Refresh income value from preferences
+        _monthlyIncome.value = preferenceHelper.getUserIncome()
+    }
+    
+    /**
+     * Update the user's monthly income
+     */
+    fun updateMonthlyIncome(income: Double) {
+        preferenceHelper.setUserIncome(income)
+        _monthlyIncome.value = income
     }
     
     /**

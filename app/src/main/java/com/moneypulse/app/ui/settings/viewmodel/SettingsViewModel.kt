@@ -17,6 +17,10 @@ class SettingsViewModel @Inject constructor(
     private val _isAutoTransaction = MutableStateFlow(preferenceHelper.isAutoTransactionEnabled())
     val isAutoTransaction: StateFlow<Boolean> = _isAutoTransaction.asStateFlow()
     
+    // State for user's monthly income
+    private val _userIncome = MutableStateFlow(preferenceHelper.getUserIncome())
+    val userIncome: StateFlow<Double> = _userIncome.asStateFlow()
+    
     /**
      * Set the automatic transaction processing mode
      */
@@ -27,5 +31,13 @@ class SettingsViewModel @Inject constructor(
             preferenceHelper.setTransactionMode(PreferenceHelper.MODE_MANUAL)
         }
         _isAutoTransaction.value = enabled
+    }
+    
+    /**
+     * Update the user's monthly income
+     */
+    fun updateIncome(income: Double) {
+        preferenceHelper.setUserIncome(income)
+        _userIncome.value = income
     }
 } 

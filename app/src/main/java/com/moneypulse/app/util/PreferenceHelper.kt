@@ -18,10 +18,14 @@ class PreferenceHelper @Inject constructor(
         private const val PREFERENCES_FILE = "moneypulse_prefs"
         private const val KEY_FIRST_LAUNCH = "first_launch"
         private const val KEY_TRANSACTION_MODE = "transaction_mode"
+        private const val KEY_USER_INCOME = "user_income"
         
         // Transaction modes
         const val MODE_AUTOMATIC = "automatic"
         const val MODE_MANUAL = "manual"
+        
+        // Default income value
+        const val DEFAULT_INCOME = 45000.0
     }
     
     // Create or retrieve the encrypted shared preferences
@@ -74,5 +78,19 @@ class PreferenceHelper @Inject constructor(
      */
     fun isAutoTransactionEnabled(): Boolean {
         return getTransactionMode() == MODE_AUTOMATIC
+    }
+    
+    /**
+     * Get user's monthly income
+     */
+    fun getUserIncome(): Double {
+        return encryptedPrefs.getFloat(KEY_USER_INCOME, DEFAULT_INCOME.toFloat()).toDouble()
+    }
+    
+    /**
+     * Set user's monthly income
+     */
+    fun setUserIncome(income: Double) {
+        encryptedPrefs.edit().putFloat(KEY_USER_INCOME, income.toFloat()).apply()
     }
 } 

@@ -29,6 +29,7 @@ fun HomeScreen(
 ) {
     // Collect state from ViewModel
     val monthlySpending by viewModel.monthlySpending.collectAsState()
+    val monthlyIncome by viewModel.monthlyIncome.collectAsState()
     val recentTransactions by viewModel.recentTransactions.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     
@@ -43,7 +44,7 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             DashboardHeader()
-            SpendingSummaryCard(monthlySpending)
+            SpendingSummaryCard(monthlySpending, monthlyIncome)
             RecentTransactionsCard(recentTransactions, isLoading)
         }
         
@@ -85,15 +86,15 @@ fun DashboardHeader() {
 }
 
 @Composable
-fun SpendingSummaryCard(monthlySpending: Double) {
+fun SpendingSummaryCard(monthlySpending: Double, monthlyIncome: Double) {
     // Format the amounts for display
     val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     formatter.maximumFractionDigits = 0
     
     // For the MVP, we're using placeholder values for income and balance
     val spentAmount = formatter.format(monthlySpending)
-    val incomeAmount = formatter.format(45000)
-    val balanceAmount = formatter.format(45000 - monthlySpending)
+    val incomeAmount = formatter.format(monthlyIncome)
+    val balanceAmount = formatter.format(monthlyIncome - monthlySpending)
     
     Card(
         modifier = Modifier.fillMaxWidth(),
