@@ -3,6 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
+    android:background="#0D1117"
     android:padding="16dp">
 
     <TextView
@@ -12,15 +13,17 @@
         android:text="New Transaction Detected"
         android:textAppearance="@style/TextAppearance.Compat.Notification.Title"
         android:textSize="16sp"
+        android:textColor="#FFFFFF"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/notification_amount"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="₹0.00 spent at Unknown"
+        android:layout_marginTop="8dp"
+        android:text="₹0.00 spent at Payment"
         android:textAppearance="@style/TextAppearance.Compat.Notification.Line2"
+        android:textColor="#E0E0E0"
         android:textSize="14sp" />
         
     <include
@@ -28,6 +31,6 @@
         layout="@layout/notification_buttons"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp" />
+        android:layout_marginTop="12dp" />
 
 </LinearLayout> 

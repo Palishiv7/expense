@@ -61,13 +61,18 @@ object NotificationHelper {
         formatter.maximumFractionDigits = 0
         val formattedAmount = formatter.format(transaction.amount)
         
-        // Clean up merchant name to remove any "To" suffix
-        val merchantName = cleanMerchantName(transaction.merchantName)
+        // Create a copy of the transaction with a cleaned merchant name
+        val cleanedMerchantName = cleanMerchantName(transaction.merchantName)
+        
+        // Override transaction object with cleaned merchant name for the notification
+        val cleanedTransaction = transaction.copy(
+            merchantName = cleanedMerchantName
+        )
         
         // Create intent for when user taps the notification (to edit details)
         val editIntent = Intent(context, EditTransactionActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra(EXTRA_TRANSACTION_DATA, transaction)
+            putExtra(EXTRA_TRANSACTION_DATA, cleanedTransaction)
         }
         
         val editPendingIntent = PendingIntent.getActivity(
@@ -80,7 +85,7 @@ object NotificationHelper {
         // Create "Add Transaction" action
         val addIntent = Intent(context, AddTransactionReceiver::class.java).apply {
             action = ACTION_ADD_TRANSACTION
-            putExtra(EXTRA_TRANSACTION_DATA, transaction)
+            putExtra(EXTRA_TRANSACTION_DATA, cleanedTransaction)
         }
         val addPendingIntent = PendingIntent.getBroadcast(
             context,
@@ -92,7 +97,7 @@ object NotificationHelper {
         // Create "Ignore Transaction" action
         val ignoreIntent = Intent(context, IgnoreTransactionReceiver::class.java).apply {
             action = ACTION_IGNORE_TRANSACTION
-            putExtra(EXTRA_TRANSACTION_DATA, transaction)
+            putExtra(EXTRA_TRANSACTION_DATA, cleanedTransaction)
         }
         val ignorePendingIntent = PendingIntent.getBroadcast(
             context,
@@ -102,7 +107,7 @@ object NotificationHelper {
         )
         
         // Prepare message text
-        val amountText = "$formattedAmount spent at $merchantName"
+        val amountText = "$formattedAmount spent at $cleanedMerchantName"
         
         // Create custom notification layout using RemoteViews
         val notificationLayout = RemoteViews(context.packageName, R.layout.notification_transaction)
@@ -132,11 +137,30 @@ object NotificationHelper {
      * Clean up merchant name to make it more presentable in notifications
      */
     private fun cleanMerchantName(merchantName: String): String {
-        // Remove any trailing "To" suffix
-        val cleanedName = merchantName.trim().replace(Regex("\\s+To$"), "")
+        // First, remove "To" suffix if present (case insensitive)
+        var cleanedName = merchantName.trim().replace(Regex("\\s+[Tt][Oo]\\s*$"), "")
         
-        // If it's just a bunch of digits (likely a phone number), return a generic name
-        if (cleanedName.replace(Regex("\\D"), "").length >= 10) {
+        // Check if it looks like a phone number (contains 10+ digits)
+        val digitsOnly = cleanedName.replace(Regex("\\D"), "")
+        
+        if (digitsOnly.length >= 10) {
+            return "Payment" // Always use "Payment" for phone numbers
+        }
+        
+        // If it's very short after cleaning, use generic name
+        if (cleanedName.length < 3) {
+            return "Payment"
+        }
+        
+        // Check for other patterns we want to clean up
+        val lowercaseName = cleanedName.lowercase()
+        
+        // Additional checks for common non-merchant text
+        if (lowercaseName.contains("upi") || 
+            lowercaseName.contains("reference") || 
+            lowercaseName.contains("transaction") ||
+            lowercaseName.contains("payment") ||
+            lowercaseName.matches(Regex(".*\\d{6,}.*"))) { // Contains 6+ digit number
             return "Payment"
         }
         
