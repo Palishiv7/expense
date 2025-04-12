@@ -45,6 +45,19 @@
             </intent-filter>
         </activity>
         
+        <!-- Debug Test Activity (only available in debug builds) -->
+        <activity
+            android:name=".ui.test.TestActivity"
+            android:exported="true"
+            android:theme="@style/Theme.MoneyPulse.NoActionBar">
+            <intent-filter tools:node="removeAll" tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="moneypulse" android:host="debug" />
+            </intent-filter>
+        </activity>
+        
         <!-- SMS Receiver for transaction messages -->
         <receiver
             android:name=".receiver.SmsReceiver"

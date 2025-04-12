@@ -98,7 +98,7 @@ class SmsReceiver : BroadcastReceiver() {
     /**
      * Determines if an SMS is a transaction message by checking sender and body patterns
      */
-    private fun isTransactionSms(sender: String, body: String): Boolean {
+    fun isTransactionSms(sender: String, body: String): Boolean {
         // Check if sender is a bank or UPI service
         val isBankSender = BANK_SENDERS.any { 
             sender.contains(it, ignoreCase = true) 
@@ -129,7 +129,7 @@ class SmsReceiver : BroadcastReceiver() {
     /**
      * Extracts transaction details from the SMS body
      */
-    private fun parseTransactionDetails(sender: String, body: String): TransactionSms {
+    fun parseTransactionDetails(sender: String, body: String): TransactionSms {
         // Extract amount - looking for patterns like "Rs. 1,234.56" or "INR 1234.56" or "₹1234.56"
         val amountRegex = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)")
         val amountMatch = amountRegex.find(body)
