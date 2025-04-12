@@ -11,37 +11,37 @@
         android:layout_height="wrap_content"
         android:text="₹0.00 spent at Payment"
         android:textColor="#000000"
-        android:textSize="16sp"
+        android:textSize="18sp"
         android:textStyle="bold"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp" />
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp" />
         
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingTop="0dp"
-        android:paddingBottom="8dp"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp">
-
+        android:orientation="horizontal">
+        
         <Button
-            android:id="@+id/notification_add_transaction"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:id="@+id/btn_add_transaction"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="#00C853"
             android:text="Add Transaction"
-            style="@style/NotificationButton"
-            android:layout_margin="4dp" />
-
+            android:textColor="#FFFFFF"
+            android:textAllCaps="false" />
+            
         <Button
-            android:id="@+id/notification_ignore"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:id="@+id/btn_ignore"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="#FF3D00"
             android:text="Ignore"
-            style="@style/NotificationButton"
-            android:layout_margin="4dp" />
+            android:textColor="#FFFFFF"
+            android:textAllCaps="false" />
     </LinearLayout>
 
 </LinearLayout> 
