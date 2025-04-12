@@ -43,7 +43,9 @@ class SmsReceiver : BroadcastReceiver() {
         // Common patterns to detect debit transactions
         private val DEBIT_PATTERNS = listOf(
             "debited", "purchased", "spent", "payment", "paid", "withdraw",
-            "withdrawn", "debit", "sent", "transaction", "txn", "using card"
+            "withdrawn", "debit", "sent", "transaction", "txn", "using card",
+            "deducted", "charged", "bill amount", "shopping", "purchase", "bill",
+            "order", "subscription", "membership", "fee", "charge"
         )
         
         // OTP patterns to filter out non-transaction messages
@@ -56,7 +58,8 @@ class SmsReceiver : BroadcastReceiver() {
         private val KNOWN_MERCHANTS = listOf(
             "amazon", "flipkart", "swiggy", "zomato", "bigbasket", "grofers", "uber", "ola",
             "makemytrip", "irctc", "bookmyshow", "phonepe", "gpay", "paytm", "myntra", "nykaa",
-            "snapdeal", "shopsy", "tata cliq", "jiomart", "reliance digital", "meesho", "dunzo"
+            "snapdeal", "shopsy", "tata cliq", "jiomart", "reliance digital", "meesho", "dunzo",
+            "d-mart", "dmart", "prime", "spotify", "netflix", "hotstar", "mcdonald"
         )
     }
     
@@ -130,10 +133,23 @@ class SmsReceiver : BroadcastReceiver() {
      * Extracts transaction details from the SMS body
      */
     private fun parseTransactionDetails(sender: String, body: String): TransactionSms {
-        // Extract amount - looking for patterns like "Rs. 1,234.56" or "INR 1234.56" or "₹1234.56"
-        val amountRegex = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)")
+        // Extract amount - looking for various formats
+        // INR/Rs/₹ followed by amount, Bill amount Rs. X, etc.
+        val amountRegex = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)|(?:amount|charge|bill|fee)\\s+(?:of\\s+)?(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)|(?:USD|\\$)\\s*([\\d.]+)\\s*(?:\\((?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)\\))?")
+        
         val amountMatch = amountRegex.find(body)
-        val amount = amountMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: 0.0
+        var amount = 0.0
+        
+        if (amountMatch != null) {
+            // Try all captured groups for the amount
+            for (i in 1 until amountMatch.groupValues.size) {
+                val value = amountMatch.groupValues[i]
+                if (value.isNotEmpty()) {
+                    amount = value.replace(",", "").toDoubleOrNull() ?: 0.0
+                    if (amount > 0) break
+                }
+            }
+        }
         
         // Enhanced merchant detection with multiple patterns and context awareness
         val merchant = extractMerchantName(body)
@@ -156,6 +172,22 @@ class SmsReceiver : BroadcastReceiver() {
         for (merchant in KNOWN_MERCHANTS) {
             if (body.contains(merchant, ignoreCase = true)) {
                 return merchant.replaceFirstChar { it.uppercase() }
+            }
+        }
+        
+        // Check for Prime membership or subscription messages
+        if (body.contains("prime membership", ignoreCase = true)) {
+            return "Amazon Prime"
+        }
+        
+        // Check for receipt-style messages (Thank you for shopping at X)
+        if (body.contains("thank you for shopping at", ignoreCase = true)) {
+            val match = Regex("shopping at ([A-Za-z0-9\\s&\\-']+)").find(body)
+            if (match != null) {
+                val storeName = match.groupValues[1].trim()
+                if (storeName.isNotEmpty()) {
+                    return storeName
+                }
             }
         }
         
