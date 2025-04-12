@@ -12,6 +12,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    
     - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
@@ -23,20 +24,7 @@ jobs:
       run: |
         echo "Current directory: $(pwd)"
         ls -la
-        find . -name "gradlew" -type f
-      
-    - name: Generate Gradle Wrapper
-      run: |
-        # Download the specified Gradle version
-        wget https://services.gradle.org/distributions/gradle-8.0-bin.zip -P /tmp
-        unzip -d /tmp /tmp/gradle-8.0-bin.zip
-        
-        # Generate the wrapper
-        /tmp/gradle-8.0/bin/gradle wrapper
-        
-        # Verify the wrapper files
-        ls -la
-      
+    
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
       
@@ -47,7 +35,7 @@ jobs:
       run: ./gradlew assembleDebug
       
     - name: Upload APK
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@83fd05a356d7e2593de66fc9913b3002723633cb # v3.1.1
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/app-debug.apk
