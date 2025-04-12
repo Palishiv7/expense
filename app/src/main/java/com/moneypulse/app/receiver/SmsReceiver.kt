@@ -49,6 +49,13 @@ class SmsReceiver : BroadcastReceiver() {
             "otp", "verified", "verification", "verify", "code", "password",
             "security code", "secure access", "authenticate", "validation"
         )
+        
+        // Common merchant names for better detection
+        private val KNOWN_MERCHANTS = listOf(
+            "amazon", "flipkart", "swiggy", "zomato", "bigbasket", "grofers", "uber", "ola",
+            "makemytrip", "irctc", "bookmyshow", "phonepe", "gpay", "paytm", "myntra", "nykaa",
+            "snapdeal", "shopsy", "tata cliq", "jiomart", "reliance digital", "meesho", "dunzo"
+        )
     }
     
     @Inject
@@ -111,7 +118,7 @@ class SmsReceiver : BroadcastReceiver() {
      * Extracts transaction details from the SMS body
      */
     private fun parseTransactionDetails(sender: String, body: String): TransactionSms {
-        // Extract amount - looking for patterns like "Rs. 1,234.56" or "INR 1234.56"
+        // Extract amount - looking for patterns like "Rs. 1,234.56" or "INR 1234.56" or "₹1234.56"
         val amountRegex = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)")
         val amountMatch = amountRegex.find(body)
         val amount = amountMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: 0.0
@@ -133,6 +140,13 @@ class SmsReceiver : BroadcastReceiver() {
      * Advanced merchant name extraction with multiple patterns and cleanup
      */
     private fun extractMerchantName(body: String): String {
+        // First check for known merchants
+        for (merchant in KNOWN_MERCHANTS) {
+            if (body.contains(merchant, ignoreCase = true)) {
+                return merchant.replaceFirstChar { it.uppercase() }
+            }
+        }
+        
         // Common merchant patterns in different bank SMS formats
         val patterns = listOf(
             // "spent at MERCHANT" pattern
@@ -153,6 +167,10 @@ class SmsReceiver : BroadcastReceiver() {
             val match = pattern.find(body)
             if (match != null) {
                 val extracted = match.groupValues[1].trim()
+                // Skip phone number matches
+                if (isPhoneNumber(extracted)) {
+                    continue
+                }
                 // Clean up and validate before returning
                 return cleanupMerchantName(extracted, body)
             }
@@ -176,6 +194,16 @@ class SmsReceiver : BroadcastReceiver() {
     }
     
     /**
+     * Check if a string looks like a phone number
+     */
+    private fun isPhoneNumber(text: String): Boolean {
+        // Remove all non-digit characters
+        val digitsOnly = text.replace(Regex("\\D+"), "")
+        // If we have 10 or more digits, it's likely a phone number
+        return digitsOnly.length >= 10 && digitsOnly.length <= 12
+    }
+    
+    /**
      * Clean up and validate merchant names, removing common non-merchant words
      */
     private fun cleanupMerchantName(merchant: String, originalBody: String): String {
@@ -184,8 +212,18 @@ class SmsReceiver : BroadcastReceiver() {
             "info", "transaction", "credited", "debited", "paid", "card", "bank",
             "account", "payment", "transfer", "avl bal", "avl", "bal", "balance",
             "reward", "points", "credit", "debit", "upi", "ref", "reference", "txn", 
-            "block", "not", "call"
+            "block", "not", "call", "fwd", "download", "forward", "to block", "block upi",
+            "to", "from", "at", "on", "by", "via", "thru", "of", "in", "for", "the", "and", "is", "on",
+            "your", "you", "has", "have", "been", "was", "will", "shall", "mobile", "phone", "using",
+            "with", "through", "vpa", "a/c", "ac", "no", "ifsc", "dated", "date", "time"
         )
+        
+        // Check if the merchant is just a phone number
+        val isPhoneNumber = merchant.trim().replace(" ", "").matches(Regex("\\d{10,12}"))
+        if (isPhoneNumber) {
+            // Try harder to find a real merchant name
+            return extractBetterMerchantFromBody(originalBody)
+        }
         
         // Transform to proper case and remove trailing punctuation
         var cleaned = merchant.trim().split(" ")
@@ -222,5 +260,49 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         return cleaned
+    }
+    
+    /**
+     * Extracts better merchant name from SMS body when primary attempt fails
+     */
+    private fun extractBetterMerchantFromBody(body: String): String {
+        // Look for common keyword-value patterns that might indicate a merchant
+        val commonPatterns = listOf(
+            Regex("(?:merchant|shop|store|vendor|payee|biller|recipient)\\s*[:-]?\\s*([A-Za-z0-9\\s&\\-']+)"),
+            Regex("(?:at|with|to)\\s+([A-Za-z]+)"),
+            Regex("\\b([A-Za-z]{4,})\\b") // Look for words that might be merchant names
+        )
+        
+        for (pattern in commonPatterns) {
+            val match = pattern.find(body)
+            if (match != null) {
+                val candidate = match.groupValues[1].trim()
+                
+                // Skip if it looks like a phone number
+                if (isPhoneNumber(candidate)) {
+                    continue
+                }
+                
+                // Skip common non-merchant words
+                if (candidate.equals("info", ignoreCase = true) || 
+                    candidate.equals("transaction", ignoreCase = true) ||
+                    candidate.equals("credit", ignoreCase = true) ||
+                    candidate.equals("debit", ignoreCase = true)) {
+                    continue
+                }
+                
+                if (candidate.length >= 3) {
+                    return candidate.replaceFirstChar { it.uppercase() }
+                }
+            }
+        }
+        
+        // Last resort - try to find a UPI ID or reference number
+        val upiMatch = Regex("([a-zA-Z0-9.]+@[a-zA-Z0-9.]+)").find(body)
+        if (upiMatch != null) {
+            return "UPI: ${upiMatch.groupValues[1]}"
+        }
+        
+        return "Unknown Merchant"
     }
 } 

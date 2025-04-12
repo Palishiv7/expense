@@ -60,6 +60,9 @@ object NotificationHelper {
         formatter.maximumFractionDigits = 0
         val formattedAmount = formatter.format(transaction.amount)
         
+        // Clean up merchant name to remove any "To" suffix
+        val merchantName = cleanMerchantName(transaction.merchantName)
+        
         // Create intent for when user taps the notification (to edit details)
         val editIntent = Intent(context, EditTransactionActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -98,12 +101,12 @@ object NotificationHelper {
         )
         
         // Prepare a detailed notification message
-        val shortMessage = "$formattedAmount spent at ${transaction.merchantName}"
+        val shortMessage = "$formattedAmount spent at $merchantName"
         
         // More detailed message for expanded view
         val detailedMessage = """
             Amount: $formattedAmount
-            Merchant: ${transaction.merchantName}
+            Merchant: $merchantName
             ${if (transaction.description.isNullOrEmpty()) "" else "Description: ${transaction.description}"}
             Tap to review details
         """.trimIndent()
@@ -134,5 +137,20 @@ object NotificationHelper {
         // Show the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(TRANSACTION_NOTIFICATION_ID, notificationBuilder.build())
+    }
+    
+    /**
+     * Clean up merchant name to make it more presentable in notifications
+     */
+    private fun cleanMerchantName(merchantName: String): String {
+        // Remove any trailing "To" suffix
+        val cleanedName = merchantName.trim().replace(Regex("\\s+To$"), "")
+        
+        // If it's just a bunch of digits (likely a phone number), return a generic name
+        if (cleanedName.replace(Regex("\\D"), "").length >= 10) {
+            return "Payment"
+        }
+        
+        return cleanedName
     }
 } 
