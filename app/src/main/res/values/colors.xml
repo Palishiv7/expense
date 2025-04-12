@@ -12,6 +12,12 @@
     <color name="primary">#FF6200EE</color>
     <color name="primary_dark">#FF3700B3</color>
     <color name="accent">#FF03DAC5</color>
+    
+    <!-- Legacy color names (for backward compatibility) -->
+    <color name="colorPrimary">@color/primary</color>
+    <color name="colorPrimaryDark">@color/primary_dark</color>
+    <color name="colorAccent">@color/accent</color>
+    
     <color name="expense_red">#FFE53935</color>
     <color name="income_green">#FF43A047</color>
     <color name="neutral_gray">#FF757575</color>
