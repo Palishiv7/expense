@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.moneypulse.app.R
 import com.moneypulse.app.domain.model.TransactionSms
@@ -100,39 +101,27 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        // Prepare a detailed notification message
-        val shortMessage = "$formattedAmount spent at $merchantName"
+        // Prepare message text
+        val amountText = "$formattedAmount spent at $merchantName"
         
-        // More detailed message for expanded view
-        val detailedMessage = """
-            Amount: $formattedAmount
-            Merchant: $merchantName
-            ${if (transaction.description.isNullOrEmpty()) "" else "Description: ${transaction.description}"}
-            Tap to review details
-        """.trimIndent()
+        // Create custom notification layout using RemoteViews
+        val notificationLayout = RemoteViews(context.packageName, R.layout.notification_transaction)
+        notificationLayout.setTextViewText(R.id.notification_title, 
+            context.getString(R.string.transaction_notification_title))
+        notificationLayout.setTextViewText(R.id.notification_amount, amountText)
         
-        // Build notification with circular icon-only action buttons
+        // Set up button click listeners
+        notificationLayout.setOnClickPendingIntent(R.id.btn_approve, addPendingIntent)
+        notificationLayout.setOnClickPendingIntent(R.id.btn_reject, ignorePendingIntent)
+        
+        // Build notification with custom layout
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(context.getString(R.string.transaction_notification_title))
-            .setContentText(shortMessage)
-            .setStyle(NotificationCompat.BigTextStyle()
-                .bigText(detailedMessage))
+            .setCustomContentView(notificationLayout)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            // Add green checkmark action (icon only, no text)
-            .addAction(
-                R.drawable.ic_check_circle,
-                "", // Empty text for icon-only button
-                addPendingIntent
-            )
-            // Add red X action (icon only, no text)
-            .addAction(
-                R.drawable.ic_cancel_circle,
-                "", // Empty text for icon-only button
-                ignorePendingIntent
-            )
         
         // Show the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
