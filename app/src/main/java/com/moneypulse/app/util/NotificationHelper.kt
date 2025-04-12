@@ -133,6 +133,8 @@ object NotificationHelper {
             // Using DecoratedCustomViewStyle but setting blank title to keep white background
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setContentTitle("") // Empty title
+            .setSubText("") // Empty subtext
+            .setContentInfo("") // Empty content info
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_MAX) // Maximum priority

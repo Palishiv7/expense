@@ -13,7 +13,7 @@
     </style>
     
     <!-- Custom notification button styles -->
-    <style name="NotificationButton" parent="@android:style/Widget.Button">
+    <style name="NotificationButton" parent="Widget.AppCompat.Button.Borderless">
         <item name="android:textColor">@color/colorPrimary</item>
         <item name="android:textSize">14sp</item>
         <item name="android:textStyle">bold</item>
@@ -24,8 +24,13 @@
         <item name="android:background">@android:color/transparent</item>
     </style>
     
-    <!-- Fallback style for TextAppearance.Material.Notification.Action -->
-    <style name="TextAppearance.Compat.Notification.Action" parent="@android:style/TextAppearance">
+    <!-- TextAppearance styles for compatibility -->
+    <style name="TextAppearance.Compat.Notification" parent="TextAppearance.AppCompat.Notification"/>
+    <style name="TextAppearance.Compat.Notification.Title" parent="TextAppearance.AppCompat.Notification.Title"/>
+    <style name="TextAppearance.Compat.Notification.Info" parent="TextAppearance.AppCompat.Notification.Info"/>
+    <style name="TextAppearance.Compat.Notification.Time" parent="TextAppearance.AppCompat.Notification.Time"/>
+    <style name="TextAppearance.Compat.Notification.Line2" parent="TextAppearance.AppCompat.Notification.Line2"/>
+    <style name="TextAppearance.Compat.Notification.Action" parent="TextAppearance.AppCompat.Notification.Title">
         <item name="android:textColor">@color/colorPrimary</item>
         <item name="android:textSize">13sp</item>
     </style>
