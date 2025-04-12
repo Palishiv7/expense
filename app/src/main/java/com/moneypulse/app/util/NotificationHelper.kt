@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.moneypulse.app.R
@@ -44,6 +45,7 @@ object NotificationHelper {
                 this.description = description
                 enableLights(true)
                 enableVibration(true)
+                setShowBadge(true) // Shows badge on app icon
             }
             
             // Register the channel with the system
@@ -89,7 +91,7 @@ object NotificationHelper {
         }
         val addPendingIntent = PendingIntent.getBroadcast(
             context,
-            1,
+            System.currentTimeMillis().toInt(), // Use timestamp to ensure unique request code
             addIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -101,15 +103,18 @@ object NotificationHelper {
         }
         val ignorePendingIntent = PendingIntent.getBroadcast(
             context,
-            2,
+            System.currentTimeMillis().toInt() + 1, // Use timestamp+1 to ensure unique request code
             ignoreIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
+        // Get default notification sound
+        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        
         // Prepare message text
         val shortMessage = "$formattedAmount spent at $cleanedMerchantName"
         
-        // Build notification with standard action buttons
+        // Build notification with enhanced prominence
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(context.getString(R.string.transaction_notification_title))
@@ -117,8 +122,12 @@ object NotificationHelper {
             .setStyle(NotificationCompat.BigTextStyle().bigText(shortMessage))
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX) // Maximum priority
+            .setCategory(NotificationCompat.CATEGORY_CALL) // Treat as high-priority like a call
             .setColor(Color.parseColor("#4CAF50")) // Green app color
+            .setSound(defaultSoundUri) // Play notification sound
+            .setVibrate(longArrayOf(0, 250, 250, 250)) // Custom vibration pattern
+            .setLights(Color.GREEN, 1000, 500) // Green LED flash
             .addAction(
                 R.drawable.ic_check_circle,
                 context.getString(R.string.add_transaction),
@@ -130,8 +139,13 @@ object NotificationHelper {
                 ignorePendingIntent
             )
         
-        // Show the notification
+        // Show the notification with increased priority
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        
+        // Cancel any existing notifications first to ensure this one shows at the top
+        notificationManager.cancel(TRANSACTION_NOTIFICATION_ID)
+        
+        // Display the new high-priority notification
         notificationManager.notify(TRANSACTION_NOTIFICATION_ID, notificationBuilder.build())
     }
     
