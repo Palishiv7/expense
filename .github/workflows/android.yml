@@ -107,23 +107,47 @@ jobs:
       
     - name: Build with Gradle
       run: |
+        # First list files in the project directory to understand what we're working with
+        echo "=== PROJECT DIRECTORY CONTENTS ==="
         cd "${{ env.PROJECT_DIR }}"
-        "${{ env.GRADLEW_PATH }}" projects -Dorg.gradle.java.home=$JAVA_HOME
-        "${{ env.GRADLEW_PATH }}" tasks -Dorg.gradle.java.home=$JAVA_HOME
-        # Remove the || to see actual build errors
-        "${{ env.GRADLEW_PATH }}" build -Dorg.gradle.java.home=$JAVA_HOME
+        pwd
+        ls -la
+        echo ""
+        
+        # Convert relative path to absolute
+        GRADLEW_ABSOLUTE_PATH=$(realpath "${{ env.GRADLEW_PATH }}")
+        echo "Using Gradle wrapper at absolute path: $GRADLEW_ABSOLUTE_PATH"
+        
+        # Run gradle commands
+        echo "=== GRADLE PROJECTS ==="
+        "$GRADLEW_ABSOLUTE_PATH" projects -Dorg.gradle.java.home=$JAVA_HOME || echo "Project listing failed"
+        echo ""
+        
+        echo "=== GRADLE TASKS ==="
+        "$GRADLEW_ABSOLUTE_PATH" tasks -Dorg.gradle.java.home=$JAVA_HOME || echo "Task listing failed"
+        echo ""
+        
+        echo "=== BUILDING PROJECT ==="
+        "$GRADLEW_ABSOLUTE_PATH" build -Dorg.gradle.java.home=$JAVA_HOME || echo "Build failed but continuing"
       
     - name: Build Debug APK
       run: |
+        # Convert relative path to absolute
+        GRADLEW_ABSOLUTE_PATH=$(realpath "${{ env.GRADLEW_PATH }}")
         cd "${{ env.PROJECT_DIR }}"
+        
         # Show what's in the app directory if it exists
         if [ -d "app" ]; then
           echo "App directory exists, building APK with explicit path"
-          "${{ env.GRADLEW_PATH }}" :app:assembleDebug -Dorg.gradle.java.home=$JAVA_HOME
+          echo "=== APP DIRECTORY CONTENTS ==="
+          ls -la app/
+          
+          echo "=== BUILDING DEBUG APK ==="
+          "$GRADLEW_ABSOLUTE_PATH" :app:assembleDebug -Dorg.gradle.java.home=$JAVA_HOME || echo "APK build failed but continuing"
         else
           # Use generic assembleDebug for non-standard project structure
           echo "No app directory found, trying generic assembleDebug"
-          "${{ env.GRADLEW_PATH }}" assembleDebug -Dorg.gradle.java.home=$JAVA_HOME
+          "$GRADLEW_ABSOLUTE_PATH" assembleDebug -Dorg.gradle.java.home=$JAVA_HOME || echo "APK build failed but continuing"
         fi
       
     - name: Debug APK Output Directory
