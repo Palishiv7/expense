@@ -105,16 +105,16 @@ object NotificationHelper {
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            // Add action with green check icon
+            // Add action with green check icon (no text)
             .addAction(
                 R.drawable.ic_check_circle,
-                context.getString(R.string.add_transaction),
+                "", // Empty string for text-free icon
                 addPendingIntent
             )
-            // Add action with red X icon
+            // Add action with red X icon (no text)
             .addAction(
                 R.drawable.ic_cancel_circle,
-                context.getString(R.string.ignore),
+                "", // Empty string for text-free icon
                 ignorePendingIntent
             )
         
