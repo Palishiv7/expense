@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import com.moneypulse.app.R
 import com.moneypulse.app.domain.model.TransactionSms
 import com.moneypulse.app.ui.MainActivity
+import com.moneypulse.app.ui.transaction.EditTransactionActivity
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -20,6 +21,11 @@ object NotificationHelper {
     
     private const val CHANNEL_ID = "transaction_channel"
     private const val TRANSACTION_NOTIFICATION_ID = 1001
+    
+    // Action constants for broadcast receivers
+    const val ACTION_ADD_TRANSACTION = "com.moneypulse.app.ADD_TRANSACTION"
+    const val ACTION_IGNORE_TRANSACTION = "com.moneypulse.app.IGNORE_TRANSACTION"
+    const val EXTRA_TRANSACTION_DATA = "transaction_data"
     
     /**
      * Create notification channel for Android O and above
@@ -44,7 +50,7 @@ object NotificationHelper {
     }
     
     /**
-     * Show a notification for a new transaction
+     * Show a notification for a new transaction with action buttons
      */
     fun showTransactionNotification(context: Context, transaction: TransactionSms) {
         // Format the amount for display
@@ -52,26 +58,59 @@ object NotificationHelper {
         formatter.maximumFractionDigits = 0
         val amount = formatter.format(transaction.amount)
         
-        // Intent to open app when notification is clicked
-        val intent = Intent(context, MainActivity::class.java).apply {
+        // Create intent for when user taps the notification (to edit details)
+        val editIntent = Intent(context, EditTransactionActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra(EXTRA_TRANSACTION_DATA, transaction)
         }
         
-        val pendingIntent = PendingIntent.getActivity(
+        val editPendingIntent = PendingIntent.getActivity(
             context,
             0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE
+            editIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        // Build the notification
+        // Create "Add Transaction" action
+        val addIntent = Intent(ACTION_ADD_TRANSACTION).apply {
+            putExtra(EXTRA_TRANSACTION_DATA, transaction)
+        }
+        val addPendingIntent = PendingIntent.getBroadcast(
+            context,
+            1,
+            addIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        // Create "Ignore Transaction" action
+        val ignoreIntent = Intent(ACTION_IGNORE_TRANSACTION).apply {
+            putExtra(EXTRA_TRANSACTION_DATA, transaction)
+        }
+        val ignorePendingIntent = PendingIntent.getBroadcast(
+            context,
+            2,
+            ignoreIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        // Build the notification with actions
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // Use appropriate icon
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(context.getString(R.string.transaction_notification_title))
             .setContentText("₹${transaction.amount} spent at ${transaction.merchantName}")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
+            .addAction(
+                R.drawable.ic_launcher_foreground, 
+                context.getString(R.string.add_transaction),
+                addPendingIntent
+            )
+            .addAction(
+                R.drawable.ic_launcher_foreground, 
+                context.getString(R.string.ignore),
+                ignorePendingIntent
+            )
         
         // Show the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

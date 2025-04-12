@@ -68,16 +68,9 @@ class SmsReceiver : BroadcastReceiver() {
                 if (isTransactionSms(sender, body)) {
                     val transaction = parseTransactionDetails(sender, body)
                     
-                    // Process the transaction in a background coroutine
-                    CoroutineScope(Dispatchers.IO).launch {
-                        transactionRepository.processNewTransactionSms(transaction)
-                        
-                        // Show notification on the main thread
-                        CoroutineScope(Dispatchers.Main).launch {
-                            // Show notification to user about the detected transaction
-                            NotificationHelper.showTransactionNotification(context, transaction)
-                        }
-                    }
+                    // Show notification to user about the detected transaction
+                    // No longer automatically saving to database
+                    NotificationHelper.showTransactionNotification(context, transaction)
                 }
             }
         }

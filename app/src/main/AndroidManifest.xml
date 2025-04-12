@@ -55,6 +55,29 @@
             </intent-filter>
         </receiver>
         
+        <!-- Transaction action receivers -->
+        <receiver
+            android:name=".receiver.AddTransactionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.moneypulse.app.ADD_TRANSACTION" />
+            </intent-filter>
+        </receiver>
+        
+        <receiver
+            android:name=".receiver.IgnoreTransactionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.moneypulse.app.IGNORE_TRANSACTION" />
+            </intent-filter>
+        </receiver>
+        
+        <!-- Transaction edit activity -->
+        <activity
+            android:name=".ui.transaction.EditTransactionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MoneyPulse.NoActionBar" />
+        
     </application>
 
 </manifest> 
