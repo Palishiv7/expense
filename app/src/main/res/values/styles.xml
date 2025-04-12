@@ -8,7 +8,7 @@
     </style>
     
     <!-- Notification action button style -->
-    <style name="NotificationAction" parent="@android:style/TextAppearance.Material.Notification.Action">
+    <style name="NotificationAction" parent="TextAppearance.Compat.Notification.Info">
         <item name="android:textColor">@color/white</item>
     </style>
 </resources> 
