@@ -134,8 +134,8 @@ class SmsReceiver : BroadcastReceiver() {
      */
     private fun parseTransactionDetails(sender: String, body: String): TransactionSms {
         // Extract amount - looking for various formats
-        // INR/Rs/₹ followed by amount, Bill amount Rs. X, etc.
-        val amountRegex = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)|(?:amount|charge|bill|fee)\\s+(?:of\\s+)?(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)|(?:USD|\\$)\\s*([\\d.]+)\\s*(?:\\((?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)\\))?")
+        // Added pattern to detect "Amount X.XX" without currency symbol
+        val amountRegex = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)|(?:amount|charge|bill|fee)\\s+(?:of\\s+)?(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)|(?:USD|\\$)\\s*([\\d.]+)\\s*(?:\\((?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)\\))?")
         
         val amountMatch = amountRegex.find(body)
         var amount = 0.0
@@ -148,6 +148,16 @@ class SmsReceiver : BroadcastReceiver() {
                     amount = value.replace(",", "").toDoubleOrNull() ?: 0.0
                     if (amount > 0) break
                 }
+            }
+        }
+        
+        // If amount is still 0, try a simpler approach with direct number extraction
+        if (amount == 0.0) {
+            // Look for numbers with decimal points that might be amounts
+            val simpleAmountRegex = Regex("\\b(\\d+\\.\\d{1,2})\\b")
+            val simpleMatch = simpleAmountRegex.find(body)
+            if (simpleMatch != null) {
+                amount = simpleMatch.groupValues[1].toDoubleOrNull() ?: 0.0
             }
         }
         
