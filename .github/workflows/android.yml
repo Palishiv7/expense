@@ -49,6 +49,14 @@ jobs:
         PROJECT_DIR=$(dirname "$ROOT_BUILD_GRADLE")
         echo "Project directory: $PROJECT_DIR"
         
+        # Find settings.gradle to determine the root project directory
+        ROOT_PROJECT_DIR=$(find . -maxdepth 2 -name "settings.gradle" -type f | head -n 1 | xargs dirname)
+        if [ -z "$ROOT_PROJECT_DIR" ]; then
+          # If settings.gradle not found, use the current directory as root
+          ROOT_PROJECT_DIR="."
+        fi
+        echo "Root project directory: $ROOT_PROJECT_DIR"
+        
         # Find gradlew file
         GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
         
@@ -59,8 +67,8 @@ jobs:
           unzip -q gradle-8.0-bin.zip
           export PATH=$PATH:$(pwd)/gradle-8.0/bin
           
-          # Generate wrapper in the project directory
-          cd "$PROJECT_DIR"
+          # Generate wrapper in the ROOT project directory
+          cd "$ROOT_PROJECT_DIR"
           # Backup any existing gradle.properties
           if [ -f "gradle.properties" ]; then
             mv gradle.properties gradle.properties.bak
