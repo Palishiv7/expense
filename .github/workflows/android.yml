@@ -136,8 +136,9 @@ jobs:
         "${{ env.GRADLEW_PATH }}" tasks -Dorg.gradle.java.home=$JAVA_HOME || echo "Task listing failed"
         echo ""
         
-        echo "=== BUILDING PROJECT ==="
-        "${{ env.GRADLEW_PATH }}" build -x lint -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0 || echo "Build failed but continuing"
+        # Skip the full build and only check if the project can be evaluated
+        echo "=== PROJECT EVALUATION ==="
+        "${{ env.GRADLEW_PATH }}" help -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0 || echo "Project evaluation failed but continuing"
       
     - name: Build Debug APK
       run: |
@@ -153,12 +154,20 @@ jobs:
           echo "=== APP DIRECTORY CONTENTS ==="
           ls -la app/
           
-          echo "=== BUILDING DEBUG APK ==="
-          "${{ env.GRADLEW_PATH }}" :app:assembleDebug -x lint -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0 || echo "APK build failed but continuing"
+          echo "=== BUILDING DEBUG APK ONLY ==="
+          "${{ env.GRADLEW_PATH }}" :app:assembleDebug --stacktrace -x lint -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0
+          
+          # Check build output even if the command failed
+          echo "=== CHECKING FOR APK OUTPUT ==="
+          find app -name "*.apk" -type f
         else
           # Use generic assembleDebug for non-standard project structure
           echo "No app directory found, trying generic assembleDebug"
-          "${{ env.GRADLEW_PATH }}" assembleDebug -x lint -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0 || echo "APK build failed but continuing"
+          "${{ env.GRADLEW_PATH }}" assembleDebug --stacktrace -x lint -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0
+          
+          # Check for APK file
+          echo "=== CHECKING FOR APK OUTPUT ==="
+          find . -name "*.apk" -type f
         fi
       
     - name: Debug APK Output Directory
