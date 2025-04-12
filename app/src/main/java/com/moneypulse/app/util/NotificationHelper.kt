@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.moneypulse.app.R
 import com.moneypulse.app.domain.model.TransactionSms
+import com.moneypulse.app.ui.MainActivity
 import com.moneypulse.app.ui.transaction.EditTransactionActivity
 import java.text.NumberFormat
 import java.util.Locale
@@ -49,7 +50,7 @@ object NotificationHelper {
     }
     
     /**
-     * Show a notification for a new transaction with standard colored action buttons
+     * Show a notification for a new transaction with standard action buttons
      */
     fun showTransactionNotification(context: Context, transaction: TransactionSms) {
         // Format the amount for display
@@ -94,39 +95,28 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        // Build notification with standard layout and action buttons
+        // Build notification with standard actions
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(context.getString(R.string.transaction_notification_title))
             .setContentText("₹${transaction.amount} spent at ${transaction.merchantName}")
-            // Use BigTextStyle to ensure the content is fully visible
             .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("₹${transaction.amount} spent at ${transaction.merchantName}")
-                .setBigContentTitle(context.getString(R.string.transaction_notification_title)))
+                .bigText("₹${transaction.amount} spent at ${transaction.merchantName}"))
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            // Make the notification vibrate to draw attention
-            .setVibrate(longArrayOf(0, 250, 250, 250))
-            // Set background color to white to provide contrast for the colored buttons
-            .setColor(context.resources.getColor(R.color.colorWhite, null))
-            // Use action buttons with prominent icons and clear text
+            // Add action with green check icon
             .addAction(
-                NotificationCompat.Action.Builder(
-                    R.drawable.ic_add,
-                    context.getString(R.string.add_transaction).uppercase(),
-                    addPendingIntent
-                ).build()
+                R.drawable.ic_check_circle,
+                context.getString(R.string.add_transaction),
+                addPendingIntent
             )
+            // Add action with red X icon
             .addAction(
-                NotificationCompat.Action.Builder(
-                    R.drawable.ic_ignore,
-                    context.getString(R.string.ignore).uppercase(),
-                    ignorePendingIntent
-                ).build()
+                R.drawable.ic_cancel_circle,
+                context.getString(R.string.ignore),
+                ignorePendingIntent
             )
-            // Use default notification light
-            .setLights(context.resources.getColor(R.color.colorPrimary, null), 1000, 500)
         
         // Show the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
