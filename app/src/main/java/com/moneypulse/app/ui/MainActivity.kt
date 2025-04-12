@@ -28,11 +28,13 @@ import androidx.navigation.compose.rememberNavController
 import com.moneypulse.app.R
 import com.moneypulse.app.ui.dialog.TransactionModeDialog
 import com.moneypulse.app.ui.home.HomeScreen
+import com.moneypulse.app.ui.home.viewmodel.HomeViewModel
 import com.moneypulse.app.ui.settings.SettingsScreen
 import com.moneypulse.app.ui.transactions.TransactionsScreen
 import com.moneypulse.app.util.PreferenceHelper
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -146,12 +148,23 @@ fun MoneyPulseTheme(content: @Composable () -> Unit) {
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
+    val homeViewModel: HomeViewModel = hiltViewModel()
     
     val items = listOf(
         Screen.Home,
         Screen.Transactions,
         Screen.Settings
     )
+    
+    // Observe navigation changes to reload data when returning to home screen
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    
+    // Effect to refresh home data when navigating back to home screen
+    LaunchedEffect(currentRoute) {
+        if (currentRoute == Screen.Home.route) {
+            homeViewModel.refresh()
+        }
+    }
     
     Scaffold(
         bottomBar = {
@@ -184,7 +197,7 @@ fun MainScreen() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Home.route) {
-                HomeScreen()
+                HomeScreen(viewModel = homeViewModel)
             }
             composable(Screen.Transactions.route) {
                 TransactionsScreen()
