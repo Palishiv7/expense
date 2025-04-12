@@ -80,12 +80,12 @@ jobs:
     - name: Build with Gradle
       run: |
         cd "${{ env.PROJECT_DIR }}"
-        "${{ env.GRADLEW_PATH }}" build || echo "Build step may have failed but continuing"
+        "${{ env.GRADLEW_PATH }}" build -Dorg.gradle.java.home=$JAVA_HOME || echo "Build step may have failed but continuing"
       
     - name: Build Debug APK
       run: |
         cd "${{ env.PROJECT_DIR }}"
-        "${{ env.GRADLEW_PATH }}" assembleDebug || echo "APK build step may have failed but continuing"
+        "${{ env.GRADLEW_PATH }}" assembleDebug -Dorg.gradle.java.home=$JAVA_HOME || echo "APK build step may have failed but continuing"
       
     - name: Debug APK Output Directory
       run: |
