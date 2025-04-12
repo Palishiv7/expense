@@ -29,25 +29,19 @@
 
         <Button
             android:id="@+id/notification_add_transaction"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:background="@drawable/rounded_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Add Transaction"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginEnd="4dp" />
+            style="@style/NotificationButton"
+            android:layout_margin="4dp" />
 
         <Button
             android:id="@+id/notification_ignore"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:layout_weight="1"
-            android:background="@drawable/rounded_button_secondary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Ignore"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:layout_marginStart="4dp" />
+            style="@style/NotificationButton"
+            android:layout_margin="4dp" />
     </LinearLayout>
 
 </LinearLayout> 
