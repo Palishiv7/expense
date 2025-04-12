@@ -1,9 +1,5 @@
 package com.moneypulse.app.ui.home
 
-import android.content.Context
-import android.content.Intent
-import android.os.Build
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,13 +10,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,10 +32,6 @@ fun HomeScreen(
     val recentTransactions by viewModel.recentTransactions.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     
-    // For debug triple-tap
-    val context = LocalContext.current
-    var tapCount by remember { mutableStateOf(0) }
-    
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -54,17 +42,7 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Debug: Triple-tap on header to access test screen
-            DashboardHeader(
-                modifier = Modifier.clickable {
-                    tapCount++
-                    if (tapCount == 3) {
-                        // Reset count and launch test activity
-                        tapCount = 0
-                        launchTestActivity(context)
-                    }
-                }
-            )
+            DashboardHeader()
             SpendingSummaryCard(monthlySpending)
             RecentTransactionsCard(recentTransactions, isLoading)
         }
@@ -86,20 +64,10 @@ fun HomeScreen(
     }
 }
 
-// Launch the test activity
-private fun launchTestActivity(context: Context) {
-    // Only in debug builds (will be checked by manifest)
-    val intent = Intent().apply {
-        setClassName(context, "com.moneypulse.app.ui.test.TestActivity")
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    context.startActivity(intent)
-}
-
 @Composable
-fun DashboardHeader(modifier: Modifier = Modifier) {
+fun DashboardHeader() {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
     ) {
