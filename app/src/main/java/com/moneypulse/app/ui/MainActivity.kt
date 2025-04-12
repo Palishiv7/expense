@@ -2,6 +2,7 @@ package com.moneypulse.app.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -32,13 +33,24 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val permissionLauncher = registerForActivityResult(
+    private val smsPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
             // Permission granted, proceed with SMS reading
+            checkAndRequestNotificationPermission()
         } else {
             // Handle the case where permission is denied
+        }
+    }
+    
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            // Notification permission granted
+        } else {
+            // Handle notification permission denied
         }
     }
 
@@ -60,14 +72,36 @@ class MainActivity : ComponentActivity() {
                 this,
                 Manifest.permission.RECEIVE_SMS
             ) == PackageManager.PERMISSION_GRANTED -> {
-                // Permission is granted, proceed
+                // Permission is granted, proceed to check notification permission
+                checkAndRequestNotificationPermission()
             }
             shouldShowRequestPermissionRationale(Manifest.permission.RECEIVE_SMS) -> {
                 // Show permission explanation dialog
             }
             else -> {
                 // Request permission
-                permissionLauncher.launch(Manifest.permission.RECEIVE_SMS)
+                smsPermissionLauncher.launch(Manifest.permission.RECEIVE_SMS)
+            }
+        }
+    }
+    
+    private fun checkAndRequestNotificationPermission() {
+        // Only needed for Android 13 and higher
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            when {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED -> {
+                    // Notification permission already granted
+                }
+                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
+                    // Show explanation dialog for notification permission
+                }
+                else -> {
+                    // Request notification permission
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             }
         }
     }

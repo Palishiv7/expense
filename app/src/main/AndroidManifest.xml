@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.moneypulse.app">
 
     <!-- SMS Permission for reading transaction messages -->
@@ -9,6 +10,9 @@
     <!-- For foreground service if needed -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     
+    <!-- Required for notifications on Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
     <application
         android:name=".MoneyPulseApp"
         android:allowBackup="false"
@@ -17,6 +21,18 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MoneyPulse">
+        
+        <!-- Remove default WorkManager initializer -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
         
         <activity
             android:name=".ui.MainActivity"
