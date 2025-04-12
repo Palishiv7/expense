@@ -108,31 +108,58 @@ jobs:
     - name: Build with Gradle
       run: |
         cd "${{ env.PROJECT_DIR }}"
-        "${{ env.GRADLEW_PATH }}" build -Dorg.gradle.java.home=$JAVA_HOME || echo "Build step may have failed but continuing"
+        "${{ env.GRADLEW_PATH }}" projects -Dorg.gradle.java.home=$JAVA_HOME
+        "${{ env.GRADLEW_PATH }}" tasks -Dorg.gradle.java.home=$JAVA_HOME
+        # Remove the || to see actual build errors
+        "${{ env.GRADLEW_PATH }}" build -Dorg.gradle.java.home=$JAVA_HOME
       
     - name: Build Debug APK
       run: |
         cd "${{ env.PROJECT_DIR }}"
-        "${{ env.GRADLEW_PATH }}" assembleDebug -Dorg.gradle.java.home=$JAVA_HOME || echo "APK build step may have failed but continuing"
+        # Show what's in the app directory if it exists
+        if [ -d "app" ]; then
+          echo "App directory exists, building APK with explicit path"
+          "${{ env.GRADLEW_PATH }}" :app:assembleDebug -Dorg.gradle.java.home=$JAVA_HOME
+        else
+          # Use generic assembleDebug for non-standard project structure
+          echo "No app directory found, trying generic assembleDebug"
+          "${{ env.GRADLEW_PATH }}" assembleDebug -Dorg.gradle.java.home=$JAVA_HOME
+        fi
       
     - name: Debug APK Output Directory
       run: |
-        echo "Checking APK output directory structure:"
-        find . -name "outputs" -type d | xargs ls -la || echo "No outputs directories found"
-        find . -name "*.apk" -type f || echo "No APK files found"
+        echo "=== PROJECT STRUCTURE ==="
+        find . -type d -maxdepth 3 | sort
         
-        # Save APK path for upload
+        echo "=== BUILD OUTPUTS ==="
+        find . -path "*/build/*" -type d | sort
+        
+        echo "=== LOOKING FOR APK FILES ==="
+        find . -name "*.apk" -type f
+        
+        # Also try to find any output files as fallback
+        echo "=== OTHER OUTPUT FILES ==="
+        find . -path "*/build/outputs/*" -type f | head -n 10
+        
+        # Save APK path for upload (or fallback to any file in outputs)
         APK_PATH=$(find . -name "*.apk" -type f | head -n 1)
+        if [ -z "$APK_PATH" ]; then
+          # Fallback to any file in outputs directory
+          APK_PATH=$(find . -path "*/build/outputs/*" -type f | head -n 1)
+        fi
+        
         if [ -n "$APK_PATH" ]; then
-          echo "Found APK at: $APK_PATH"
+          echo "Found output at: $APK_PATH"
           echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
         else
-          echo "Warning: No APK file found!"
+          # Create a dummy file if nothing found
+          echo "No output files found, creating fallback file"
+          echo "Build completed but no APK was generated" > build-log.txt
+          echo "APK_PATH=build-log.txt" >> $GITHUB_ENV
         fi
 
-    - name: Upload APK
+    - name: Upload Build Output
       uses: actions/upload-artifact@master
-      if: env.APK_PATH != ''
       with:
-        name: app-debug
-        path: ${{ env.APK_PATH }} 
+        name: build-output
+        path: ${{ env.APK_PATH || 'build-log.txt' }} 
