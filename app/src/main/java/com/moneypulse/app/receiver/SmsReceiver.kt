@@ -106,8 +106,12 @@ class SmsReceiver : BroadcastReceiver() {
             body.contains(it, ignoreCase = true) 
         }
         
-        // Transaction messages should come from a bank, not be OTPs, and contain debit patterns
-        return (isBankSender || isUpiSender) && !isOtpMessage && isDebitMessage
+        // TESTING MODE: Accept any message with debit patterns that isn't an OTP
+        // Temporarily removing the bank sender requirement
+        return !isOtpMessage && isDebitMessage
+        
+        // PRODUCTION MODE (commented out for testing)
+        // return (isBankSender || isUpiSender) && !isOtpMessage && isDebitMessage
     }
     
     /**
