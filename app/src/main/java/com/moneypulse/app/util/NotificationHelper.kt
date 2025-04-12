@@ -6,11 +6,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.moneypulse.app.R
 import com.moneypulse.app.domain.model.TransactionSms
-import com.moneypulse.app.ui.MainActivity
 import com.moneypulse.app.ui.transaction.EditTransactionActivity
 import java.text.NumberFormat
 import java.util.Locale
@@ -51,7 +49,7 @@ object NotificationHelper {
     }
     
     /**
-     * Show a notification for a new transaction with custom styled buttons
+     * Show a notification for a new transaction with standard colored action buttons
      */
     fun showTransactionNotification(context: Context, transaction: TransactionSms) {
         // Format the amount for display
@@ -96,28 +94,39 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        // Create RemoteViews for custom notification layout
-        val notificationLayout = RemoteViews(context.packageName, R.layout.notification_transaction)
-        
-        // Set text for the notification
-        notificationLayout.setTextViewText(R.id.notification_title, context.getString(R.string.transaction_notification_title))
-        notificationLayout.setTextViewText(R.id.notification_text, "₹${transaction.amount} spent at ${transaction.merchantName}")
-        
-        // Set button click actions
-        notificationLayout.setOnClickPendingIntent(R.id.btn_add_transaction, addPendingIntent)
-        notificationLayout.setOnClickPendingIntent(R.id.btn_ignore, ignorePendingIntent)
-        
-        // Set button text
-        notificationLayout.setTextViewText(R.id.btn_add_transaction, context.getString(R.string.add_transaction))
-        notificationLayout.setTextViewText(R.id.btn_ignore, context.getString(R.string.ignore))
-        
-        // Build notification with custom layout
+        // Build notification with standard layout and action buttons
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(context.getString(R.string.transaction_notification_title))
+            .setContentText("₹${transaction.amount} spent at ${transaction.merchantName}")
+            // Use BigTextStyle to ensure the content is fully visible
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("₹${transaction.amount} spent at ${transaction.merchantName}")
+                .setBigContentTitle(context.getString(R.string.transaction_notification_title)))
             .setContentIntent(editPendingIntent)
-            .setCustomContentView(notificationLayout)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            // Make the notification vibrate to draw attention
+            .setVibrate(longArrayOf(0, 250, 250, 250))
+            // Set background color to white to provide contrast for the colored buttons
+            .setColor(context.resources.getColor(R.color.colorWhite, null))
+            // Use action buttons with prominent icons and clear text
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_add,
+                    context.getString(R.string.add_transaction).uppercase(),
+                    addPendingIntent
+                ).build()
+            )
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    R.drawable.ic_ignore,
+                    context.getString(R.string.ignore).uppercase(),
+                    ignorePendingIntent
+                ).build()
+            )
+            // Use default notification light
+            .setLights(context.resources.getColor(R.color.colorPrimary, null), 1000, 500)
         
         // Show the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
