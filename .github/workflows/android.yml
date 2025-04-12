@@ -29,6 +29,12 @@ jobs:
         echo "Searching for build.gradle files:"
         find . -name "build.gradle" -type f
         
+    - name: Create temporary gradle.properties
+      run: |
+        # Create a minimal gradle.properties without the Windows-specific Java home
+        echo "org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8" > /tmp/gradle.properties
+        echo "android.useAndroidX=true" >> /tmp/gradle.properties
+        
     - name: Setup Gradle
       run: |
         # Find build.gradle in the root or subdirectories
@@ -55,7 +61,21 @@ jobs:
           
           # Generate wrapper in the project directory
           cd "$PROJECT_DIR"
-          gradle wrapper
+          # Backup any existing gradle.properties
+          if [ -f "gradle.properties" ]; then
+            mv gradle.properties gradle.properties.bak
+          fi
+          # Use our temporary gradle.properties
+          cp /tmp/gradle.properties ./gradle.properties
+          
+          # Generate wrapper with explicitly set JAVA_HOME
+          JAVA_OPTS="-Dorg.gradle.java.home=$JAVA_HOME" gradle wrapper
+          
+          # Restore original gradle.properties if it existed
+          if [ -f "gradle.properties.bak" ]; then
+            mv gradle.properties.bak gradle.properties
+          fi
+          
           cd - > /dev/null
           
           # Find the newly created gradlew
