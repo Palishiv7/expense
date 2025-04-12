@@ -24,20 +24,22 @@ class AddTransactionReceiver : BroadcastReceiver() {
     lateinit var transactionRepository: TransactionRepository
     
     override fun onReceive(context: Context, intent: Intent) {
-        val transaction = intent.getParcelableExtra<TransactionSms>(NotificationHelper.EXTRA_TRANSACTION_DATA)
-        
-        if (transaction != null) {
-            // Process in background
-            CoroutineScope(Dispatchers.IO).launch {
-                transactionRepository.processNewTransactionSms(transaction)
-                
-                // Show toast on the main thread
-                CoroutineScope(Dispatchers.Main).launch {
-                    Toast.makeText(
-                        context, 
-                        context.getString(R.string.transaction_added),
-                        Toast.LENGTH_SHORT
-                    ).show()
+        if (intent.action == NotificationHelper.ACTION_ADD_TRANSACTION) {
+            val transaction = intent.getParcelableExtra<TransactionSms>(NotificationHelper.EXTRA_TRANSACTION_DATA)
+            
+            if (transaction != null) {
+                // Process in background
+                CoroutineScope(Dispatchers.IO).launch {
+                    transactionRepository.processNewTransactionSms(transaction)
+                    
+                    // Show toast on the main thread
+                    CoroutineScope(Dispatchers.Main).launch {
+                        Toast.makeText(
+                            context, 
+                            context.getString(R.string.transaction_added),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         }
@@ -51,13 +53,15 @@ class AddTransactionReceiver : BroadcastReceiver() {
 class IgnoreTransactionReceiver : BroadcastReceiver() {
     
     override fun onReceive(context: Context, intent: Intent) {
-        // Just show a toast that the transaction was ignored
-        Toast.makeText(
-            context,
-            context.getString(R.string.transaction_ignored),
-            Toast.LENGTH_SHORT
-        ).show()
-        
-        // No need to save anything to the database
+        if (intent.action == NotificationHelper.ACTION_IGNORE_TRANSACTION) {
+            // Just show a toast that the transaction was ignored
+            Toast.makeText(
+                context,
+                context.getString(R.string.transaction_ignored),
+                Toast.LENGTH_SHORT
+            ).show()
+            
+            // No need to save anything to the database
+        }
     }
 } 

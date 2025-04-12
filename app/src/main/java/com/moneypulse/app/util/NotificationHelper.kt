@@ -11,6 +11,8 @@ import com.moneypulse.app.R
 import com.moneypulse.app.domain.model.TransactionSms
 import com.moneypulse.app.ui.MainActivity
 import com.moneypulse.app.ui.transaction.EditTransactionActivity
+import com.moneypulse.app.receiver.AddTransactionReceiver
+import com.moneypulse.app.receiver.IgnoreTransactionReceiver
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -56,7 +58,7 @@ object NotificationHelper {
         // Format the amount for display
         val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
         formatter.maximumFractionDigits = 0
-        val amount = formatter.format(transaction.amount)
+        val formattedAmount = formatter.format(transaction.amount)
         
         // Create intent for when user taps the notification (to edit details)
         val editIntent = Intent(context, EditTransactionActivity::class.java).apply {
@@ -72,8 +74,8 @@ object NotificationHelper {
         )
         
         // Create "Add Transaction" action
-        val addIntent = Intent(ACTION_ADD_TRANSACTION).apply {
-            setPackage(context.packageName) // Important for Android 12+
+        val addIntent = Intent(context, AddTransactionReceiver::class.java).apply {
+            action = ACTION_ADD_TRANSACTION
             putExtra(EXTRA_TRANSACTION_DATA, transaction)
         }
         val addPendingIntent = PendingIntent.getBroadcast(
@@ -84,8 +86,8 @@ object NotificationHelper {
         )
         
         // Create "Ignore Transaction" action
-        val ignoreIntent = Intent(ACTION_IGNORE_TRANSACTION).apply {
-            setPackage(context.packageName) // Important for Android 12+
+        val ignoreIntent = Intent(context, IgnoreTransactionReceiver::class.java).apply {
+            action = ACTION_IGNORE_TRANSACTION
             putExtra(EXTRA_TRANSACTION_DATA, transaction)
         }
         val ignorePendingIntent = PendingIntent.getBroadcast(
@@ -95,26 +97,37 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        // Build notification with standard actions
+        // Prepare a detailed notification message
+        val shortMessage = "$formattedAmount spent at ${transaction.merchantName}"
+        
+        // More detailed message for expanded view
+        val detailedMessage = """
+            Amount: $formattedAmount
+            Merchant: ${transaction.merchantName}
+            ${if (transaction.description.isNullOrEmpty()) "" else "Description: ${transaction.description}"}
+            Tap to review details
+        """.trimIndent()
+        
+        // Build notification with circular icon-only action buttons
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(context.getString(R.string.transaction_notification_title))
-            .setContentText("₹${transaction.amount} spent at ${transaction.merchantName}")
+            .setContentText(shortMessage)
             .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("₹${transaction.amount} spent at ${transaction.merchantName}"))
+                .bigText(detailedMessage))
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            // Add action with green check icon (no text)
+            // Add green checkmark action (icon only, no text)
             .addAction(
                 R.drawable.ic_check_circle,
-                "", // Empty string for text-free icon
+                "", // Empty text for icon-only button
                 addPendingIntent
             )
-            // Add action with red X icon (no text)
+            // Add red X action (icon only, no text)
             .addAction(
                 R.drawable.ic_cancel_circle,
-                "", // Empty string for text-free icon
+                "", // Empty text for icon-only button
                 ignorePendingIntent
             )
         
