@@ -27,10 +27,11 @@ class SmsReceiver : BroadcastReceiver() {
         
         // Bank and UPI sender patterns to identify transaction messages
         private val BANK_SENDERS = listOf(
-            "HDFCBK", "SBIINB", "ICICIB", "AXISBK", "KOTAKB", 
+            "HDFCBK", "HDFC", "SBIINB", "ICICIB", "AXISBK", "KOTAKB", 
             "PNBSMS", "SCISMS", "BOIIND", "INDBNK", "CANBNK",
             "CENTBK", "UCOBNK", "UNIONB", "SYNBNK", "IDBI", 
-            "BOBSMS", "YESBNK", "IDBIBK", "IDFCFB", "IDFCBK"
+            "BOBSMS", "YESBNK", "IDBIBK", "IDFCFB", "IDFCBK",
+            "HSBCIN", "CITI", "RBLBNK"
         )
         
         // UPI apps
@@ -155,6 +156,21 @@ class SmsReceiver : BroadcastReceiver() {
         for (merchant in KNOWN_MERCHANTS) {
             if (body.contains(merchant, ignoreCase = true)) {
                 return merchant.replaceFirstChar { it.uppercase() }
+            }
+        }
+        
+        // Check for HDFC Bank money transfer pattern
+        if (body.startsWith("Money Transfer:") && body.contains(" to ") && body.contains(" UPI: ")) {
+            try {
+                // Extract text between "to " and " UPI:"
+                val toIndex = body.indexOf(" to ") + 4
+                val upiIndex = body.indexOf(" UPI:", toIndex)
+                if (upiIndex > toIndex) {
+                    val recipient = body.substring(toIndex, upiIndex).trim()
+                    return recipient
+                }
+            } catch (e: Exception) {
+                // If any error occurs, continue with other patterns
             }
         }
         
