@@ -130,6 +130,9 @@ object NotificationHelper {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setCustomContentView(notificationLayout)
             .setCustomBigContentView(notificationLayout) // Same layout for expanded state
+            // Using DecoratedCustomViewStyle but setting blank title to keep white background
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setContentTitle("") // Empty title
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_MAX) // Maximum priority
