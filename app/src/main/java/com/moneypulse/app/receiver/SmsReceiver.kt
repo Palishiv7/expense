@@ -116,10 +116,8 @@ class SmsReceiver : BroadcastReceiver() {
         val amountMatch = amountRegex.find(body)
         val amount = amountMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull() ?: 0.0
         
-        // Try to extract merchant name if present (this is a simple approach, will be enhanced)
-        val merchantRegex = Regex("(?:at|to|@|in)\\s+([A-Za-z0-9\\s]+)")
-        val merchantMatch = merchantRegex.find(body)
-        val merchant = merchantMatch?.groupValues?.get(1)?.trim() ?: "Unknown Merchant"
+        // Enhanced merchant detection with multiple patterns and context awareness
+        val merchant = extractMerchantName(body)
         
         // For now, we'll just use the body as the full SMS
         return TransactionSms(
@@ -129,5 +127,100 @@ class SmsReceiver : BroadcastReceiver() {
             merchantName = merchant,
             timestamp = System.currentTimeMillis()
         )
+    }
+    
+    /**
+     * Advanced merchant name extraction with multiple patterns and cleanup
+     */
+    private fun extractMerchantName(body: String): String {
+        // Common merchant patterns in different bank SMS formats
+        val patterns = listOf(
+            // "spent at MERCHANT" pattern
+            Regex("(?:spent|txn|purchase|payment)\\s+(?:at|in|to|with|via|from)\\s+([A-Za-z0-9\\s&\\-']+?)(?:\\s+on|\\s+for|\\s+info|\\s+[\\d]|\\.|$)"),
+            
+            // "at MERCHANT on" pattern (common in credit card transactions)
+            Regex("(?:at|in|to|with|thru)\\s+([A-Za-z0-9\\s&\\-']+?)(?:\\s+on|\\s+for|\\s+info|\\s+[\\d]|\\.|$)"),
+            
+            // "towards MERCHANT" pattern (common in UPI)
+            Regex("(?:towards|for|to)\\s+([A-Za-z0-9\\s&\\-']+?)(?:\\s+on|\\s+info|\\s+[\\d]|\\.|$)"),
+            
+            // "MERCHANT-LOCATION" pattern (with info)
+            Regex("(?:at|in|to)\\s+([A-Za-z0-9\\s&\\-']+?)-([A-Za-z0-9\\s]+?)(?:\\s+on|\\s+info|\\s+[\\d]|\\.|$)")
+        )
+        
+        // Try all patterns in order
+        for (pattern in patterns) {
+            val match = pattern.find(body)
+            if (match != null) {
+                val extracted = match.groupValues[1].trim()
+                // Clean up and validate before returning
+                return cleanupMerchantName(extracted, body)
+            }
+        }
+        
+        // Fallback to UPI ID detection if no other patterns match
+        val upiPattern = Regex("UPI-([A-Za-z0-9\\-@\\.]+)")
+        val upiMatch = upiPattern.find(body)
+        if (upiMatch != null) {
+            return "UPI: ${upiMatch.groupValues[1]}"
+        }
+        
+        // If all else fails, try to extract any distinctive part
+        val fallbackPattern = Regex("(?:txn|Txn|TXN|Ref)[\\s:]*([A-Za-z0-9]+)")
+        val fallbackMatch = fallbackPattern.find(body)
+        if (fallbackMatch != null) {
+            return "Transaction ${fallbackMatch.groupValues[1]}"
+        }
+        
+        return "Unknown Merchant"
+    }
+    
+    /**
+     * Clean up and validate merchant names, removing common non-merchant words
+     */
+    private fun cleanupMerchantName(merchant: String, originalBody: String): String {
+        // Words that are commonly part of transaction messages but aren't merchant names
+        val blacklistWords = listOf(
+            "info", "transaction", "credited", "debited", "paid", "card", "bank",
+            "account", "payment", "transfer", "avl bal", "avl", "bal", "balance",
+            "reward", "points", "credit", "debit", "upi", "ref", "reference", "txn", 
+            "block", "not", "call"
+        )
+        
+        // Transform to proper case and remove trailing punctuation
+        var cleaned = merchant.trim().split(" ")
+            .filter { it.length > 1 } // Remove single characters
+            .joinToString(" ") { 
+                it.lowercase().replaceFirstChar { c -> c.uppercase() } 
+            }
+            .replace(Regex("[,\\.;:\\-_!]*$"), "")
+        
+        // Remove blacklisted words
+        for (word in blacklistWords) {
+            cleaned = cleaned.replace(Regex("\\b$word\\b", RegexOption.IGNORE_CASE), "")
+        }
+        
+        // Clean up extra spaces
+        cleaned = cleaned.replace(Regex("\\s+"), " ").trim()
+        
+        // If we've eliminated too much, fall back to a simple approach
+        if (cleaned.length < 3) {
+            // Try extracting capitalized words as a last resort
+            val capitalizedPattern = Regex("\\b[A-Z]{2,}\\b")
+            val capitalMatches = capitalizedPattern.findAll(originalBody)
+            if (capitalMatches.count() > 0) {
+                val capitalWords = capitalMatches.map { it.value }
+                    .filter { it !in listOf("UPI", "INR", "SMS", "RS", "VPA", "A/C", "NEFT", "IMPS") }
+                    .toList()
+                
+                if (capitalWords.isNotEmpty()) {
+                    return capitalWords.first()
+                }
+            }
+            
+            return "Unknown Merchant"
+        }
+        
+        return cleaned
     }
 } 

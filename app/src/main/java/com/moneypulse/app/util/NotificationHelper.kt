@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.moneypulse.app.R
 import com.moneypulse.app.domain.model.TransactionSms
@@ -50,7 +51,7 @@ object NotificationHelper {
     }
     
     /**
-     * Show a notification for a new transaction with action buttons
+     * Show a notification for a new transaction with custom styled buttons
      */
     fun showTransactionNotification(context: Context, transaction: TransactionSms) {
         // Format the amount for display
@@ -73,6 +74,7 @@ object NotificationHelper {
         
         // Create "Add Transaction" action
         val addIntent = Intent(ACTION_ADD_TRANSACTION).apply {
+            setPackage(context.packageName) // Important for Android 12+
             putExtra(EXTRA_TRANSACTION_DATA, transaction)
         }
         val addPendingIntent = PendingIntent.getBroadcast(
@@ -84,6 +86,7 @@ object NotificationHelper {
         
         // Create "Ignore Transaction" action
         val ignoreIntent = Intent(ACTION_IGNORE_TRANSACTION).apply {
+            setPackage(context.packageName) // Important for Android 12+
             putExtra(EXTRA_TRANSACTION_DATA, transaction)
         }
         val ignorePendingIntent = PendingIntent.getBroadcast(
@@ -93,24 +96,29 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
-        // Build the notification with actions
+        // Create RemoteViews for custom notification layout
+        val notificationLayout = RemoteViews(context.packageName, R.layout.notification_transaction)
+        
+        // Set text for the notification
+        notificationLayout.setTextViewText(R.id.notification_title, context.getString(R.string.transaction_notification_title))
+        notificationLayout.setTextViewText(R.id.notification_text, "₹${transaction.amount} spent at ${transaction.merchantName}")
+        
+        // Set button click actions
+        notificationLayout.setOnClickPendingIntent(R.id.btn_add_transaction, addPendingIntent)
+        notificationLayout.setOnClickPendingIntent(R.id.btn_ignore, ignorePendingIntent)
+        
+        // Set button text
+        notificationLayout.setTextViewText(R.id.btn_add_transaction, context.getString(R.string.add_transaction))
+        notificationLayout.setTextViewText(R.id.btn_ignore, context.getString(R.string.ignore))
+        
+        // Build notification with custom layout
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(context.getString(R.string.transaction_notification_title))
-            .setContentText("₹${transaction.amount} spent at ${transaction.merchantName}")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(editPendingIntent)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(notificationLayout)
             .setAutoCancel(true)
-            .addAction(
-                R.drawable.ic_launcher_foreground, 
-                context.getString(R.string.add_transaction),
-                addPendingIntent
-            )
-            .addAction(
-                R.drawable.ic_launcher_foreground, 
-                context.getString(R.string.ignore),
-                ignorePendingIntent
-            )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
         
         // Show the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
