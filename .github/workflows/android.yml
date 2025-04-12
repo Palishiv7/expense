@@ -26,9 +26,23 @@ jobs:
         ls -la
         echo "Searching for gradlew file:"
         find . -name "gradlew" -type f
+        echo "Searching for build.gradle files:"
+        find . -name "build.gradle" -type f
         
     - name: Setup Gradle
       run: |
+        # Find build.gradle in the root or subdirectories
+        ROOT_BUILD_GRADLE=$(find . -maxdepth 2 -name "build.gradle" -type f | head -n 1)
+        
+        if [ -z "$ROOT_BUILD_GRADLE" ]; then
+          echo "No build.gradle found in expected locations"
+          exit 1
+        fi
+        
+        # Get the directory containing build.gradle
+        PROJECT_DIR=$(dirname "$ROOT_BUILD_GRADLE")
+        echo "Project directory: $PROJECT_DIR"
+        
         # Find gradlew file
         GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
         
@@ -38,29 +52,43 @@ jobs:
           wget -q https://services.gradle.org/distributions/gradle-8.0-bin.zip
           unzip -q gradle-8.0-bin.zip
           export PATH=$PATH:$(pwd)/gradle-8.0/bin
-          # Generate wrapper in the correct location
-          cd MoneyPulse
+          
+          # Generate wrapper in the project directory
+          cd "$PROJECT_DIR"
           gradle wrapper
-          cd ..
-          GRADLEW_PATH="./MoneyPulse/gradlew"
+          cd - > /dev/null
+          
+          # Find the newly created gradlew
+          GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
+          
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "Failed to generate Gradle wrapper"
+            exit 1
+          fi
         fi
         
         # Make gradlew executable
         chmod +x "$GRADLEW_PATH"
         
-        # Save the path for later steps
+        # Save the paths for later steps
         echo "GRADLEW_PATH=$GRADLEW_PATH" >> $GITHUB_ENV
+        echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
         
         echo "Using gradlew at: $GRADLEW_PATH"
+        echo "Project directory: $PROJECT_DIR"
       
     - name: Build with Gradle
-      run: ${{ env.GRADLEW_PATH }} build || echo "Build step may have failed but continuing"
+      run: |
+        cd "${{ env.PROJECT_DIR }}"
+        "${{ env.GRADLEW_PATH }}" build || echo "Build step may have failed but continuing"
       
     - name: Build Debug APK
-      run: ${{ env.GRADLEW_PATH }} assembleDebug || echo "APK build step may have failed but continuing"
+      run: |
+        cd "${{ env.PROJECT_DIR }}"
+        "${{ env.GRADLEW_PATH }}" assembleDebug || echo "APK build step may have failed but continuing"
       
     - name: Debug APK Output Directory
       run: |
         echo "Checking APK output directory structure:"
-        find . -name "outputs" -type d | xargs ls -la
-        find . -name "*.apk" -type f 
+        find . -name "outputs" -type d | xargs ls -la || echo "No outputs directories found"
+        find . -name "*.apk" -type f || echo "No APK files found" 
