@@ -6,7 +6,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.moneypulse.app.R
 import com.moneypulse.app.domain.model.TransactionSms
@@ -61,8 +60,8 @@ object NotificationHelper {
         formatter.maximumFractionDigits = 0
         val formattedAmount = formatter.format(transaction.amount)
         
-        // Create a copy of the transaction with a cleaned merchant name
-        val cleanedMerchantName = cleanMerchantName(transaction.merchantName)
+        // Aggressively clean the merchant name
+        val cleanedMerchantName = cleanMerchantName(transaction.body)
         
         // Override transaction object with cleaned merchant name for the notification
         val cleanedTransaction = transaction.copy(
@@ -107,26 +106,27 @@ object NotificationHelper {
         )
         
         // Prepare message text
-        val amountText = "$formattedAmount spent at $cleanedMerchantName"
+        val shortMessage = "$formattedAmount spent at $cleanedMerchantName"
         
-        // Create custom notification layout using RemoteViews
-        val notificationLayout = RemoteViews(context.packageName, R.layout.notification_transaction)
-        notificationLayout.setTextViewText(R.id.notification_title, 
-            context.getString(R.string.transaction_notification_title))
-        notificationLayout.setTextViewText(R.id.notification_amount, amountText)
-        
-        // Set up button click listeners
-        notificationLayout.setOnClickPendingIntent(R.id.btn_approve, addPendingIntent)
-        notificationLayout.setOnClickPendingIntent(R.id.btn_reject, ignorePendingIntent)
-        
-        // Build notification with custom layout
+        // Build notification with standard action buttons
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setCustomContentView(notificationLayout)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setContentTitle(context.getString(R.string.transaction_notification_title))
+            .setContentText(shortMessage)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(shortMessage))
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .addAction(
+                R.drawable.ic_check_circle,
+                context.getString(R.string.add_transaction),
+                addPendingIntent
+            )
+            .addAction(
+                R.drawable.ic_cancel_circle,
+                context.getString(R.string.ignore),
+                ignorePendingIntent
+            )
         
         // Show the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -135,35 +135,23 @@ object NotificationHelper {
     
     /**
      * Clean up merchant name to make it more presentable in notifications
+     * This version uses the full SMS body for better context
      */
-    private fun cleanMerchantName(merchantName: String): String {
-        // First, remove "To" suffix if present (case insensitive)
-        var cleanedName = merchantName.trim().replace(Regex("\\s+[Tt][Oo]\\s*$"), "")
+    private fun cleanMerchantName(smsBody: String): String {
+        // Check for common merchants first
+        val knownMerchants = listOf(
+            "amazon", "flipkart", "swiggy", "zomato", "bigbasket", "grofers", 
+            "uber", "ola", "phonepe", "gpay", "paytm", "airtel", "jio", "vodafone",
+            "makemytrip", "irctc", "bookmyshow", "myntra", "nykaa", "snapdeal"
+        )
         
-        // Check if it looks like a phone number (contains 10+ digits)
-        val digitsOnly = cleanedName.replace(Regex("\\D"), "")
-        
-        if (digitsOnly.length >= 10) {
-            return "Payment" // Always use "Payment" for phone numbers
+        for (merchant in knownMerchants) {
+            if (smsBody.contains(merchant, ignoreCase = true)) {
+                return merchant.replaceFirstChar { it.uppercase() }
+            }
         }
         
-        // If it's very short after cleaning, use generic name
-        if (cleanedName.length < 3) {
-            return "Payment"
-        }
-        
-        // Check for other patterns we want to clean up
-        val lowercaseName = cleanedName.lowercase()
-        
-        // Additional checks for common non-merchant text
-        if (lowercaseName.contains("upi") || 
-            lowercaseName.contains("reference") || 
-            lowercaseName.contains("transaction") ||
-            lowercaseName.contains("payment") ||
-            lowercaseName.matches(Regex(".*\\d{6,}.*"))) { // Contains 6+ digit number
-            return "Payment"
-        }
-        
-        return cleanedName
+        // Fall back to a generic name for all other cases
+        return "Payment"
     }
 } 
