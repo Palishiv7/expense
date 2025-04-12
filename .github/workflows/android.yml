@@ -119,4 +119,20 @@ jobs:
       run: |
         echo "Checking APK output directory structure:"
         find . -name "outputs" -type d | xargs ls -la || echo "No outputs directories found"
-        find . -name "*.apk" -type f || echo "No APK files found" 
+        find . -name "*.apk" -type f || echo "No APK files found"
+        
+        # Save APK path for upload
+        APK_PATH=$(find . -name "*.apk" -type f | head -n 1)
+        if [ -n "$APK_PATH" ]; then
+          echo "Found APK at: $APK_PATH"
+          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
+        else
+          echo "Warning: No APK file found!"
+        fi
+
+    - name: Upload APK
+      uses: actions/upload-artifact@master
+      if: env.APK_PATH != ''
+      with:
+        name: app-debug
+        path: ${{ env.APK_PATH }} 
