@@ -3,56 +3,68 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="8dp"
+    android:padding="0dp"
     android:background="@android:color/white">
 
-    <!-- Notification title -->
-    <TextView
-        android:id="@+id/notification_title"
+    <!-- Notification content -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#000000"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:text="New Transaction Detected" />
+        android:orientation="vertical"
+        android:padding="16dp">
+        
+        <!-- Notification title -->
+        <TextView
+            android:id="@+id/notification_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:text="New Transaction Detected" />
+    
+        <!-- Transaction details -->
+        <TextView
+            android:id="@+id/notification_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#444444"
+            android:textSize="16sp"
+            android:layout_marginTop="8dp"
+            android:text="₹0.00 spent at Unknown Merchant" />
+    </LinearLayout>
 
-    <!-- Transaction details -->
-    <TextView
-        android:id="@+id/notification_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textColor="#444444"
-        android:textSize="14sp"
-        android:layout_marginTop="4dp"
-        android:text="₹0.00 spent at Unknown Merchant" />
-
-    <!-- Action buttons -->
+    <!-- Action buttons with no margin between them -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="16dp">
+        android:layout_marginTop="0dp">
 
         <!-- Add Transaction button (green) -->
         <Button
             android:id="@+id/btn_add_transaction"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="48dp"
             android:layout_weight="1"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="0dp"
+            android:layout_marginRight="0dp"
             android:background="@drawable/button_green"
             android:textColor="#FFFFFF"
+            android:textSize="16sp"
             android:text="Add Transaction" />
 
         <!-- Ignore button (red) -->
         <Button
             android:id="@+id/btn_ignore"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="48dp"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="0dp"
+            android:layout_marginLeft="0dp"
             android:background="@drawable/button_red"
             android:textColor="#FFFFFF"
+            android:textSize="16sp"
             android:text="Ignore" />
     </LinearLayout>
 </LinearLayout> 

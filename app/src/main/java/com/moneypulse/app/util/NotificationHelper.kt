@@ -115,7 +115,6 @@ object NotificationHelper {
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(editPendingIntent)
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(notificationLayout)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
