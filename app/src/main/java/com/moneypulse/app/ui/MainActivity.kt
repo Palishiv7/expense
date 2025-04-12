@@ -26,12 +26,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.moneypulse.app.R
+import com.moneypulse.app.ui.dialog.TransactionModeDialog
 import com.moneypulse.app.ui.home.HomeScreen
+import com.moneypulse.app.ui.settings.SettingsScreen
 import com.moneypulse.app.ui.transactions.TransactionsScreen
+import com.moneypulse.app.util.PreferenceHelper
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var preferenceHelper: PreferenceHelper
 
     private val smsPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -49,6 +56,7 @@ class MainActivity : ComponentActivity() {
     ) { isGranted ->
         if (isGranted) {
             // Notification permission granted
+            checkFirstLaunch()
         } else {
             // Handle notification permission denied
         }
@@ -94,6 +102,7 @@ class MainActivity : ComponentActivity() {
                     Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED -> {
                     // Notification permission already granted
+                    checkFirstLaunch()
                 }
                 shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
                     // Show explanation dialog for notification permission
@@ -102,6 +111,21 @@ class MainActivity : ComponentActivity() {
                     // Request notification permission
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
+            }
+        } else {
+            // For older Android versions, no notification permission needed
+            checkFirstLaunch()
+        }
+    }
+    
+    /**
+     * Check if this is the first app launch and show the transaction mode dialog
+     */
+    private fun checkFirstLaunch() {
+        if (preferenceHelper.isFirstLaunch()) {
+            // Show transaction mode selection dialog
+            TransactionModeDialog.show(this, preferenceHelper) { isAutomatic ->
+                // Apply the selected mode (can be used for immediate actions if needed)
             }
         }
     }
@@ -169,16 +193,6 @@ fun MainScreen() {
                 SettingsScreen()
             }
         }
-    }
-}
-
-@Composable
-fun SettingsScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Settings Screen")
     }
 }
 

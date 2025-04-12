@@ -8,6 +8,7 @@ import android.util.Log
 import com.moneypulse.app.domain.model.TransactionSms
 import com.moneypulse.app.data.repository.TransactionRepository
 import com.moneypulse.app.util.NotificationHelper
+import com.moneypulse.app.util.PreferenceHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +62,9 @@ class SmsReceiver : BroadcastReceiver() {
     @Inject
     lateinit var transactionRepository: TransactionRepository
     
+    @Inject
+    lateinit var preferenceHelper: PreferenceHelper
+    
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
@@ -75,9 +79,16 @@ class SmsReceiver : BroadcastReceiver() {
                 if (isTransactionSms(sender, body)) {
                     val transaction = parseTransactionDetails(sender, body)
                     
-                    // Show notification to user about the detected transaction
-                    // No longer automatically saving to database
-                    NotificationHelper.showTransactionNotification(context, transaction)
+                    // Check if automatic transaction mode is enabled
+                    if (preferenceHelper.isAutoTransactionEnabled()) {
+                        // Automatically add the transaction to database
+                        CoroutineScope(Dispatchers.IO).launch {
+                            transactionRepository.processNewTransactionSms(transaction)
+                        }
+                    } else {
+                        // Show notification for manual review
+                        NotificationHelper.showTransactionNotification(context, transaction)
+                    }
                 }
             }
         }

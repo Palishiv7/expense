@@ -17,4 +17,12 @@
     <string name="grant_permission">Grant Permission</string>
     <string name="transaction_added">Transaction added successfully</string>
     <string name="transaction_ignored">Transaction ignored</string>
+    
+    <!-- Transaction Mode Preference -->
+    <string name="transaction_mode_title">Transaction Processing Mode</string>
+    <string name="transaction_mode_auto">Automatic</string>
+    <string name="transaction_mode_manual">Manual</string>
+    <string name="transaction_mode_auto_description">Automatically add all detected transactions</string>
+    <string name="transaction_mode_manual_description">Review transactions via notifications</string>
+    <string name="choose_transaction_mode">How do you want to handle transactions?</string>
 </resources> 
