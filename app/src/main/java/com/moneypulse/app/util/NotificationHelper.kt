@@ -115,7 +115,7 @@ object NotificationHelper {
         // Create custom notification layout using RemoteViews
         val notificationLayout = RemoteViews(context.packageName, R.layout.notification_transaction)
         
-        // Set the text content for the amount
+        // Set the text content
         notificationLayout.setTextViewText(R.id.notification_amount, amountText)
         
         // Set up button click listeners

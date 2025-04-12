@@ -11,27 +11,4 @@
     <style name="NotificationAction" parent="@android:style/TextAppearance.Material.Notification.Action">
         <item name="android:textColor">@color/white</item>
     </style>
-    
-    <!-- Custom notification button styles -->
-    <style name="NotificationButton" parent="Widget.AppCompat.Button.Borderless">
-        <item name="android:textColor">@color/colorPrimary</item>
-        <item name="android:textSize">14sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:paddingStart">12dp</item>
-        <item name="android:paddingEnd">12dp</item>
-        <item name="android:paddingTop">8dp</item>
-        <item name="android:paddingBottom">8dp</item>
-        <item name="android:background">@android:color/transparent</item>
-    </style>
-    
-    <!-- TextAppearance styles for compatibility -->
-    <style name="TextAppearance.Compat.Notification" parent="TextAppearance.AppCompat.Notification"/>
-    <style name="TextAppearance.Compat.Notification.Title" parent="TextAppearance.AppCompat.Notification.Title"/>
-    <style name="TextAppearance.Compat.Notification.Info" parent="TextAppearance.AppCompat.Notification.Info"/>
-    <style name="TextAppearance.Compat.Notification.Time" parent="TextAppearance.AppCompat.Notification.Time"/>
-    <style name="TextAppearance.Compat.Notification.Line2" parent="TextAppearance.AppCompat.Notification.Line2"/>
-    <style name="TextAppearance.Compat.Notification.Action" parent="TextAppearance.AppCompat.Notification.Title">
-        <item name="android:textColor">@color/colorPrimary</item>
-        <item name="android:textSize">13sp</item>
-    </style>
 </resources> 
