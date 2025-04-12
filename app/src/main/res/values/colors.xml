@@ -17,4 +17,5 @@
     <color name="neutral_gray">#FF757575</color>
     <color name="background">#FFFAFAFA</color>
     <color name="surface">#FFFFFFFF</color>
+    <color name="ic_launcher_background">#6200EE</color>
 </resources> 
