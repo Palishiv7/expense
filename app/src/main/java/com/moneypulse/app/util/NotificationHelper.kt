@@ -115,14 +115,12 @@ object NotificationHelper {
         // Create custom notification layout using RemoteViews
         val notificationLayout = RemoteViews(context.packageName, R.layout.notification_transaction)
         
-        // Set the text content
-        notificationLayout.setTextViewText(R.id.notification_title, 
-            context.getString(R.string.transaction_notification_title))
+        // Set the text content - only set the amount text now
         notificationLayout.setTextViewText(R.id.notification_amount, amountText)
         
         // Set up button click listeners
-        notificationLayout.setOnClickPendingIntent(R.id.btn_add_transaction, addPendingIntent)
-        notificationLayout.setOnClickPendingIntent(R.id.btn_ignore, ignorePendingIntent)
+        notificationLayout.setOnClickPendingIntent(R.id.notification_add_transaction, addPendingIntent)
+        notificationLayout.setOnClickPendingIntent(R.id.notification_ignore, ignorePendingIntent)
         
         // Get default notification sound
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
@@ -132,7 +130,6 @@ object NotificationHelper {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setCustomContentView(notificationLayout)
             .setCustomBigContentView(notificationLayout) // Same layout for expanded state
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_MAX) // Maximum priority
