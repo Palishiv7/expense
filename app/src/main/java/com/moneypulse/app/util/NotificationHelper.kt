@@ -8,6 +8,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.media.RingtoneManager
 import android.os.Build
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.moneypulse.app.R
 import com.moneypulse.app.domain.model.TransactionSms
@@ -55,7 +56,7 @@ object NotificationHelper {
     }
     
     /**
-     * Show a notification for a new transaction with standard action buttons
+     * Show a notification for a new transaction with custom layout and colored buttons
      */
     fun showTransactionNotification(context: Context, transaction: TransactionSms) {
         // Format the amount for display
@@ -108,36 +109,36 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         
+        // Prepare message text
+        val amountText = "$formattedAmount spent at $cleanedMerchantName"
+        
+        // Create custom notification layout using RemoteViews
+        val notificationLayout = RemoteViews(context.packageName, R.layout.notification_transaction)
+        
+        // Set the text content
+        notificationLayout.setTextViewText(R.id.notification_title, 
+            context.getString(R.string.transaction_notification_title))
+        notificationLayout.setTextViewText(R.id.notification_amount, amountText)
+        
+        // Set up button click listeners
+        notificationLayout.setOnClickPendingIntent(R.id.btn_add_transaction, addPendingIntent)
+        notificationLayout.setOnClickPendingIntent(R.id.btn_ignore, ignorePendingIntent)
+        
         // Get default notification sound
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         
-        // Prepare message text
-        val shortMessage = "$formattedAmount spent at $cleanedMerchantName"
-        
-        // Build notification with enhanced prominence
+        // Build notification with custom layout
         val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(context.getString(R.string.transaction_notification_title))
-            .setContentText(shortMessage)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(shortMessage))
+            .setCustomContentView(notificationLayout)
+            .setCustomBigContentView(notificationLayout) // Same layout for expanded state
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setContentIntent(editPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_MAX) // Maximum priority
             .setCategory(NotificationCompat.CATEGORY_CALL) // Treat as high-priority like a call
-            .setColor(Color.parseColor("#4CAF50")) // Green app color
             .setSound(defaultSoundUri) // Play notification sound
             .setVibrate(longArrayOf(0, 250, 250, 250)) // Custom vibration pattern
-            .setLights(Color.GREEN, 1000, 500) // Green LED flash
-            .addAction(
-                R.drawable.ic_check_circle,
-                context.getString(R.string.add_transaction),
-                addPendingIntent
-            )
-            .addAction(
-                R.drawable.ic_cancel_circle,
-                context.getString(R.string.ignore),
-                ignorePendingIntent
-            )
         
         // Show the notification with increased priority
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

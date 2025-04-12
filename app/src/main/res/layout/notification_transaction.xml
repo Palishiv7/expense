@@ -3,34 +3,56 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="#0D1117"
-    android:padding="16dp">
+    android:background="#FFFFFF">
 
     <TextView
         android:id="@+id/notification_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="New Transaction Detected"
-        android:textAppearance="@style/TextAppearance.Compat.Notification.Title"
-        android:textSize="16sp"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold" />
+        android:textColor="#000000"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="16dp" />
 
     <TextView
         android:id="@+id/notification_amount"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
         android:text="₹0.00 spent at Payment"
-        android:textAppearance="@style/TextAppearance.Compat.Notification.Line2"
-        android:textColor="#E0E0E0"
-        android:textSize="14sp" />
+        android:textColor="#333333"
+        android:textSize="16sp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="16dp" />
         
-    <include
-        android:id="@+id/notification_buttons"
-        layout="@layout/notification_buttons"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp" />
+        android:orientation="horizontal">
+        
+        <Button
+            android:id="@+id/btn_add_transaction"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="#00C853"
+            android:text="Add Transaction"
+            android:textColor="#FFFFFF"
+            android:textAllCaps="false" />
+            
+        <Button
+            android:id="@+id/btn_ignore"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:background="#FF3D00"
+            android:text="Ignore"
+            android:textColor="#FFFFFF"
+            android:textAllCaps="false" />
+    </LinearLayout>
 
 </LinearLayout> 
