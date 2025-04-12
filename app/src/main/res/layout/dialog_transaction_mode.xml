@@ -3,15 +3,17 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="24dp"
+    android:background="@android:color/white">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/choose_transaction_mode"
-        android:textSize="18sp"
+        android:textSize="20sp"
         android:textStyle="bold"
-        android:layout_marginBottom="16dp"/>
+        android:textColor="#6200EE"
+        android:layout_marginBottom="24dp"/>
 
     <RadioGroup
         android:id="@+id/radio_group_transaction_mode"
@@ -24,7 +26,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/transaction_mode_auto"
-            android:textSize="16sp"
+            android:textSize="18sp"
+            android:textColor="#303030"
+            android:buttonTint="#6200EE"
             android:layout_marginBottom="8dp"/>
 
         <TextView
@@ -32,15 +36,18 @@
             android:layout_height="wrap_content"
             android:text="@string/transaction_mode_auto_description"
             android:textSize="14sp"
-            android:layout_marginStart="32dp"
-            android:layout_marginBottom="16dp"/>
+            android:textColor="#757575"
+            android:layout_marginStart="36dp"
+            android:layout_marginBottom="20dp"/>
 
         <RadioButton
             android:id="@+id/radio_manual"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/transaction_mode_manual"
-            android:textSize="16sp"
+            android:textSize="18sp"
+            android:textColor="#303030"
+            android:buttonTint="#6200EE"
             android:checked="true"
             android:layout_marginBottom="8dp"/>
 
@@ -49,8 +56,20 @@
             android:layout_height="wrap_content"
             android:text="@string/transaction_mode_manual_description"
             android:textSize="14sp"
-            android:layout_marginStart="32dp"
-            android:layout_marginBottom="16dp"/>
+            android:textColor="#757575"
+            android:layout_marginStart="36dp"
+            android:layout_marginBottom="24dp"/>
 
     </RadioGroup>
+
+    <Button
+        android:id="@+id/btn_confirm"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="@string/save"
+        android:textColor="@android:color/white"
+        android:textSize="16sp"
+        android:backgroundTint="#6200EE"
+        android:layout_marginTop="8dp"/>
+
 </LinearLayout> 
