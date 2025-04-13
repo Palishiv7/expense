@@ -63,7 +63,25 @@ jobs:
           echo "Found gradlew at: $GRADLEW_PATH"
           chmod +x "$GRADLEW_PATH"
           echo "GRADLEW_PATH=$GRADLEW_PATH" >> $GITHUB_ENV
-          echo "PROJECT_DIR=$(dirname $GRADLEW_PATH)" >> $GITHUB_ENV
+          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          
+          # Check if there's a gradle.properties file with a Windows-specific Java home
+          if [ -f "$PROJECT_DIR/gradle.properties" ]; then
+            echo "Found gradle.properties, checking for Windows paths"
+            if grep -q "org.gradle.java.home" "$PROJECT_DIR/gradle.properties"; then
+              echo "Found Java home setting in gradle.properties, creating a CI-specific version"
+              # Create a backup of the original file
+              cp "$PROJECT_DIR/gradle.properties" "$PROJECT_DIR/gradle.properties.original"
+              # Create a new version without the Java home setting
+              grep -v "org.gradle.java.home" "$PROJECT_DIR/gradle.properties.original" > "$PROJECT_DIR/gradle.properties"
+              # Add a Linux-specific Java home if needed
+              echo "# CI-specific settings" >> "$PROJECT_DIR/gradle.properties"
+              echo "org.gradle.java.home=$JAVA_HOME" >> "$PROJECT_DIR/gradle.properties"
+              echo "Modified gradle.properties for CI:"
+              cat "$PROJECT_DIR/gradle.properties"
+            fi
+          fi
         else
           echo "No gradlew file found in repository, attempting to generate one"
           # Download and extract Gradle
@@ -93,10 +111,11 @@ jobs:
         # Change to the project directory
         cd "${{ env.PROJECT_DIR }}"
         
-        # Run the build
+        # Run the build with explicit Java home
         "${{ env.GRADLEW_PATH }}" assembleDebug \
         --no-daemon \
         --stacktrace \
+        -Dorg.gradle.java.home=$JAVA_HOME \
         -PversionCode=${{ env.VERSION_CODE }} \
         -PversionName=${{ env.VERSION_NAME }}
     
