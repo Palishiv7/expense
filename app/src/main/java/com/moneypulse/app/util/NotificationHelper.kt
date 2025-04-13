@@ -64,18 +64,23 @@ object NotificationHelper {
         formatter.maximumFractionDigits = 0
         val formattedAmount = formatter.format(transaction.amount)
         
-        // Aggressively clean the merchant name
-        val cleanedMerchantName = cleanMerchantName(transaction.body)
+        // Use the merchant name that was already extracted by SmsReceiver
+        // Only fall back to cleaning if the merchant name is empty
+        val merchantName = if (transaction.merchantName.isNotEmpty()) {
+            transaction.merchantName
+        } else {
+            cleanMerchantName(transaction.body)
+        }
         
-        // Override transaction object with cleaned merchant name for the notification
-        val cleanedTransaction = transaction.copy(
-            merchantName = cleanedMerchantName
+        // Create transaction object with final merchant name
+        val finalTransaction = transaction.copy(
+            merchantName = merchantName
         )
         
         // Create intent for when user taps the notification (to edit details)
         val editIntent = Intent(context, EditTransactionActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra(EXTRA_TRANSACTION_DATA, cleanedTransaction)
+            putExtra(EXTRA_TRANSACTION_DATA, finalTransaction)
         }
         
         val editPendingIntent = PendingIntent.getActivity(
@@ -88,7 +93,7 @@ object NotificationHelper {
         // Create "Add Transaction" action
         val addIntent = Intent(context, AddTransactionReceiver::class.java).apply {
             action = ACTION_ADD_TRANSACTION
-            putExtra(EXTRA_TRANSACTION_DATA, cleanedTransaction)
+            putExtra(EXTRA_TRANSACTION_DATA, finalTransaction)
         }
         val addPendingIntent = PendingIntent.getBroadcast(
             context,
@@ -100,7 +105,7 @@ object NotificationHelper {
         // Create "Ignore Transaction" action
         val ignoreIntent = Intent(context, IgnoreTransactionReceiver::class.java).apply {
             action = ACTION_IGNORE_TRANSACTION
-            putExtra(EXTRA_TRANSACTION_DATA, cleanedTransaction)
+            putExtra(EXTRA_TRANSACTION_DATA, finalTransaction)
         }
         val ignorePendingIntent = PendingIntent.getBroadcast(
             context,
@@ -110,7 +115,7 @@ object NotificationHelper {
         )
         
         // Prepare message text
-        val amountText = "$formattedAmount spent at $cleanedMerchantName"
+        val amountText = "$formattedAmount spent at $merchantName"
         
         // Create custom notification layout using RemoteViews
         val notificationLayout = RemoteViews(context.packageName, R.layout.notification_transaction)
