@@ -45,6 +45,18 @@
             </intent-filter>
         </activity>
         
+        <!-- SMS Debug Activity for viewing log information -->
+        <activity
+            android:name=".ui.debug.DebugLogActivity"
+            android:exported="true"
+            android:label="SMS Debug Logs"
+            android:theme="@style/Theme.MoneyPulse">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        
         <!-- SMS Receiver for transaction messages -->
         <receiver
             android:name=".receiver.SmsReceiver"

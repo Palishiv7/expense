@@ -65,4 +65,15 @@
     <string name="ignore">Ignore</string>
     <string name="add">Add</string>
     <string name="later">Later</string>
+    
+    <!-- Debug -->
+    <string name="debug_logs_title">SMS Transaction Logs</string>
+    <string name="debug_logs_description">View real-time logs to diagnose transaction detection issues</string>
+    <string name="debug_view_logs">View Logs</string>
+    <string name="debug_clear">Clear</string>
+    <string name="debug_export">Export</string>
+    <string name="debug_auto_scroll">Auto-scroll</string>
+    <string name="debug_waiting">Waiting for SMS logs...</string>
+    <string name="debug_section_title">SMS Transaction Debug</string>
+    <string name="debug_logs_hint">Watch this screen while SMS messages arrive to diagnose detection issues</string>
 </resources> 

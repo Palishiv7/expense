@@ -25,6 +25,36 @@ class SmsReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "SmsReceiver"
         
+        // Log capture for debugging in production
+        private val debugLogs = mutableListOf<String>()
+        private const val MAX_DEBUG_LOGS = 50
+        
+        // Add method to retrieve logs
+        fun getDebugLogs(): List<String> {
+            return debugLogs.toList()
+        }
+        
+        // Add method to clear logs
+        fun clearDebugLogs() {
+            debugLogs.clear()
+        }
+        
+        // Capture log function
+        private fun captureLog(message: String) {
+            // Add timestamp
+            val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date())
+            val logEntry = "[$timestamp] $message"
+            
+            // Add to debug logs with limit
+            synchronized(debugLogs) {
+                debugLogs.add(logEntry)
+                // Keep only the last MAX_DEBUG_LOGS entries
+                if (debugLogs.size > MAX_DEBUG_LOGS) {
+                    debugLogs.removeAt(0)
+                }
+            }
+        }
+        
         // Comprehensive list of official bank sender IDs - focus only on official banks
         private val BANK_SENDERS = listOf(
             // Major Private Banks
@@ -200,47 +230,56 @@ class SmsReceiver : BroadcastReceiver() {
                     // Skip empty messages
                     if (sender.isBlank() || body.isBlank()) {
                         Log.d(TAG, "Skipping empty SMS")
+                        captureLog("Skipping empty SMS")
                         continue
                     }
                     
-                    // Log the message for debugging (consider removing in production)
+                    // Log the message for debugging
                     Log.d(TAG, "Evaluating SMS from: $sender, body: ${body.take(50)}...")
+                    captureLog("Evaluating SMS from: $sender, body: ${body.take(50)}...")
                 
-                // Check if this is a transaction SMS
-                if (isTransactionSms(sender, body)) {
+                    // Check if this is a transaction SMS
+                    if (isTransactionSms(sender, body)) {
                         Log.d(TAG, "Transaction SMS detected!")
+                        captureLog("Transaction SMS detected!")
                         
                         // Parse transaction details
-                    val transaction = parseTransactionDetails(sender, body)
+                        val transaction = parseTransactionDetails(sender, body)
                         
                         // Skip if we couldn't extract a valid amount
                         if (transaction.amount <= 0) {
                             Log.d(TAG, "Skipping transaction with invalid amount: ${transaction.amount}")
+                            captureLog("Skipping transaction with invalid amount: ${transaction.amount}")
                             continue
                         }
                         
                         // Log the extracted details
                         Log.d(TAG, "Extracted: ${transaction.merchantName}, Amount: ${transaction.amount}")
+                        captureLog("Extracted: ${transaction.merchantName}, Amount: ${transaction.amount}")
                     
-                    // Check if automatic transaction mode is enabled
-                    if (preferenceHelper.isAutoTransactionEnabled()) {
-                        // Automatically add the transaction to database
+                        // Check if automatic transaction mode is enabled
+                        if (preferenceHelper.isAutoTransactionEnabled()) {
+                            // Automatically add the transaction to database
                             Log.d(TAG, "Auto mode: Adding transaction automatically")
-                        CoroutineScope(Dispatchers.IO).launch {
-                            transactionRepository.processNewTransactionSms(transaction)
-                        }
-                    } else {
-                        // Show notification for manual review
+                            captureLog("Auto mode: Adding transaction automatically")
+                            CoroutineScope(Dispatchers.IO).launch {
+                                transactionRepository.processNewTransactionSms(transaction)
+                            }
+                        } else {
+                            // Show notification for manual review
                             Log.d(TAG, "Manual mode: Showing notification for user review")
-                        NotificationHelper.showTransactionNotification(context, transaction)
+                            captureLog("Manual mode: Showing notification for user review")
+                            NotificationHelper.showTransactionNotification(context, transaction)
                         }
                     } else {
                         // Log a message indicating this SMS was not detected as a transaction
                         Log.d(TAG, "Not a transaction SMS")
+                        captureLog("Not a transaction SMS: $sender - ${body.take(50)}")
                     }
                 } catch (e: Exception) {
                     // Catch and log any exceptions during SMS processing to avoid crashes
                     Log.e(TAG, "Error processing SMS: ${e.message}", e)
+                    captureLog("Error processing SMS: ${e.message}")
                 }
             }
         }
@@ -260,6 +299,7 @@ class SmsReceiver : BroadcastReceiver() {
         // Only proceed if the message is from an official bank
         if (!isBankSender) {
             Log.d(TAG, "SMS rejected: Not from a known bank sender - $sender")
+            captureLog("SMS rejected: Not from a known bank sender - $sender")
             return false
         }
         
@@ -270,6 +310,7 @@ class SmsReceiver : BroadcastReceiver() {
         
         if (isOtpMessage) {
             Log.d(TAG, "SMS rejected: Appears to be an OTP message")
+            captureLog("SMS rejected: Appears to be an OTP message")
             return false
         }
         
@@ -280,7 +321,18 @@ class SmsReceiver : BroadcastReceiver() {
         
         if (isPromotionalMessage) {
             Log.d(TAG, "SMS rejected: Appears to be a promotional message")
+            captureLog("SMS rejected: Appears to be a promotional message")
             return false
+        }
+        
+        // Relaxed filter: Allow messages that have amount patterns even if they look like balance updates
+        val containsAmountPattern = amountPatterns.any { pattern ->
+            pattern.find(body) != null
+        }
+        
+        // Check if this contains debit-related keywords (slightly relaxed check)
+        val isDebitRelated = DEBIT_PATTERNS.any { 
+            body.contains(it, ignoreCase = true) 
         }
         
         // Check if this is a balance update or account info (which we want to ignore)
@@ -288,18 +340,24 @@ class SmsReceiver : BroadcastReceiver() {
             body.contains(it, ignoreCase = true)
         }
         
-        if (isBalanceUpdate && !body.contains("debited", ignoreCase = true) && !body.contains("sent", ignoreCase = true)) {
+        // RELAXED FILTER: Still consider balance updates if they contain strong transaction indicators
+        if (isBalanceUpdate && !isDebitRelated && !containsAmountPattern) {
             Log.d(TAG, "SMS rejected: Appears to be just a balance update")
+            captureLog("SMS rejected: Appears to be just a balance update")
             return false
         }
         
-        // Check if this contains debit-related keywords
-        val isDebitMessage = DEBIT_PATTERNS.any { 
-            body.contains(it, ignoreCase = true) 
+        // RELAXED FILTER: If message contains amount pattern and is from a bank, consider it a transaction
+        // even if it doesn't have a clear debit keyword
+        if (containsAmountPattern) {
+            Log.d(TAG, "SMS accepted: Contains amount pattern from bank sender")
+            captureLog("SMS accepted: Contains amount pattern from bank sender")
+            return true
         }
         
-        if (!isDebitMessage) {
+        if (!isDebitRelated) {
             Log.d(TAG, "SMS rejected: No debit-related keywords found")
+            captureLog("SMS rejected: No debit-related keywords found")
             return false
         }
         
