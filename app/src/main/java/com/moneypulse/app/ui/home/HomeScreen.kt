@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,6 +19,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.moneypulse.app.domain.model.TransactionSms
 import com.moneypulse.app.ui.home.viewmodel.HomeViewModel
 import java.text.NumberFormat
@@ -25,13 +28,23 @@ import java.util.Locale
 
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: HomeViewModel = hiltViewModel(),
+    navController: NavController
 ) {
     // Collect state from ViewModel
     val monthlySpending by viewModel.monthlySpending.collectAsState()
     val monthlyIncome by viewModel.monthlyIncome.collectAsState()
     val recentTransactions by viewModel.recentTransactions.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val navigateToAddTransaction by viewModel.navigateToAddTransaction.collectAsState()
+    
+    // Handle navigation to add transaction screen
+    LaunchedEffect(navigateToAddTransaction) {
+        if (navigateToAddTransaction) {
+            navController.navigate("add_transaction")
+            viewModel.onAddTransactionNavigated()
+        }
+    }
     
     Box(
         modifier = Modifier.fillMaxSize()
@@ -238,6 +251,6 @@ fun TransactionItem(transaction: TransactionSms) {
 @Composable
 fun HomeScreenPreview() {
     MaterialTheme {
-        HomeScreen()
+        HomeScreen(navController = rememberNavController())
     }
 } 

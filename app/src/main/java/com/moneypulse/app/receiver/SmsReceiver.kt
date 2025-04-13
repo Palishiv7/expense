@@ -25,19 +25,36 @@ class SmsReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "SmsReceiver"
         
-        // Bank and UPI sender patterns to identify transaction messages
+        // Bank sender patterns to identify transaction messages - expanded to include more Indian and international banks
         private val BANK_SENDERS = listOf(
-            "HDFCBK", "HDFC", "SBIINB", "ICICIB", "AXISBK", "KOTAKB", 
-            "PNBSMS", "SCISMS", "BOIIND", "INDBNK", "CANBNK",
-            "CENTBK", "UCOBNK", "UNIONB", "SYNBNK", "IDBI", 
-            "BOBSMS", "YESBNK", "IDBIBK", "IDFCFB", "IDFCBK",
-            "HSBCIN", "CITI", "RBLBNK"
+            // Major Indian Banks
+            "HDFCBK", "HDFC", "SBIINB", "ICICIB", "AXISBK", "KOTAKB", "PNBSMS", "SCISMS", 
+            "BOIIND", "INDBNK", "CANBNK", "CENTBK", "UCOBNK", "UNIONB", "SYNBNK", "IDBI", 
+            "BOBSMS", "YESBNK", "IDBIBK", "IDFCFB", "IDFCBK", "HSBCIN", "CITI", "RBLBNK", 
+            
+            // Additional Indian Banks
+            "ANDBNK", "AUBANK", "BNDHAN", "COSBNK", "CSBKBN", "DBSBNK", "DEUTBK", "DLXBNK", 
+            "ESFBNK", "FEDRAL", "FINCAR", "INDUSB", "JKBNK", "KTKBNK", "KVBANK", "LVBSMS", 
+            "MAHBNK", "PSBNK", "SVCBNK", "TMBANK", "VJYBNK", "DNSBNK", "BARBNK", "BARAOD",
+            
+            // International Banks
+            "BARAUK", "CHEQBK", "HSBC", "LLOYDS", "NATWS", "RBYBNK", "SANTUK", "BAMLUK", 
+            "JPMORG", "AMEX", "WELLS", "CAPITA", "CHASUS", "CITI", "DISCUS", "BOFA", 
+            "NFCU", "PNCBNK", "USBANK", "BARCUK", "DEUTSCHB", "ANZBNK", "Scotia", "MUFG", 
+            "RBCBNK", "UBSBNK", "COMMBK", "OCBCBK", "DBSSG", "UOBSG"
         )
         
-        // UPI apps
+        // UPI apps and payment services - expanded to include more services
         private val UPI_SENDERS = listOf(
-            "GPAYBN", "NBLSMS", "PAYTMB", "ATMSBI", "PHONPE", 
-            "AMAZIN", "ALRTBK", "BOBTXN", "SBMSMS", "SMSIND"
+            // Indian UPI/Payment Services
+            "GPAYBN", "NBLSMS", "PAYTMB", "ATMSBI", "PHONPE", "AMAZONP", "ALRTBK", "BOBTXN", 
+            "SBMSMS", "SMSIND", "MOBIKW", "SLICEIN", "CRED", "FREECHARGE", "BHIMUP", "YESBNK",
+            "LAZYPAY", "SIMPL", "BAJAJF", "MOBKWK", "ICICI", "AIRTL", "JUPITM", "PAYZPP", 
+            
+            // International Payment Services
+            "PAYPAL", "SQUARE", "VENMO", "ZELLE", "CASHAPP", "WMONEY", "STRIPE", "APPLE", 
+            "GOOGLEP", "ALIPAY", "WECHAT", "KLARNA", "SHOPIFY", "REVOLUT", "N26", "MONZO",
+            "WISE", "LYDIA", "TWINT"
         )
         
         // Common patterns to detect debit transactions
@@ -48,18 +65,93 @@ class SmsReceiver : BroadcastReceiver() {
             "order", "subscription", "membership", "fee", "charge"
         )
         
-        // OTP patterns to filter out non-transaction messages
+        // Enhanced OTP patterns to filter out non-transaction messages
         private val OTP_PATTERNS = listOf(
-            "otp", "verified", "verification", "verify", "code", "password",
-            "security code", "secure access", "authenticate", "validation"
+            "otp", "one time password", "verified", "verification", "verify", "code", "password", "passcode",
+            "security code", "secure access", "authenticate", "validation", "confirm", "confirmation",
+            "login", "login attempt", "sign-in", "signing in", "authorization", "authorize",
+            "access code", "pin", "secret code", "token", "secure code", "2fa", "two-factor",
+            "two factor", "authentication required", "security alert", "verification required",
+            "identity verification", "validate", "validation code", "confirm your"
         )
         
-        // Common merchant names for better detection
+        // Promotional and non-transaction patterns to filter out
+        private val PROMOTIONAL_PATTERNS = listOf(
+            "offer", "discount", "cashback", "reward", "coupon", "promo", "sale", "% off", "percent off",
+            "limited time", "exclusive deal", "special offer", "congratulations", "credit card offer",
+            "loan offer", "pre-approved", "pre approved", "upgrade", "invite", "refer", "bonus",
+            "save now", "expires soon", "hurry", "last day", "only today", "insurance plan",
+            "investment plan", "scheme", "lucky draw", "win", "free", "gift", "get extra", "get flat",
+            "get upto", "installment", "emi option", "pay later"
+        )
+        
+        // Balance check and non-transaction account patterns
+        private val BALANCE_PATTERNS = listOf(
+            "available balance", "avl bal", "avl. bal", "a/c bal", "account balance", "balance in a/c",
+            "updated balance", "current balance", "mini statement", "bal statement", "statement generated",
+            "summary of acc", "updated info", "balance enquiry", "balance info", "check balance",
+            "balance update", "account info", "account update", "a/c statement", "a/c summary"
+        )
+        
+        // Common merchant names for better detection - expanded with many more merchants
         private val KNOWN_MERCHANTS = listOf(
-            "amazon", "flipkart", "swiggy", "zomato", "bigbasket", "grofers", "uber", "ola",
-            "makemytrip", "irctc", "bookmyshow", "phonepe", "gpay", "paytm", "myntra", "nykaa",
-            "snapdeal", "shopsy", "tata cliq", "jiomart", "reliance digital", "meesho", "dunzo",
-            "d-mart", "dmart", "prime", "spotify", "netflix", "hotstar", "mcdonald"
+            // E-commerce
+            "amazon", "flipkart", "ajio", "myntra", "snapdeal", "shopsy", "tata cliq", "jiomart", 
+            "meesho", "nykaa", "firstcry", "lenskart", "1mg", "pharmeasy", "netmeds", "blinkit",
+            "zepto", "mamaearth", "boat", "aliexpress", "shein", "urbanic", "bewakoof", "trends",
+            
+            // Food delivery
+            "swiggy", "zomato", "dominos", "pizzahut", "mcdonalds", "kfc", "subway", "burgerking",
+            "box8", "faasos", "freshmenu", "eatfit", "starbucks", "dunkindonuts", "wow momo", 
+            "behrouz", "ovenstory", "theobroma", "chaayos", "biryani blues", "haldiram",
+            
+            // Groceries
+            "bigbasket", "grofers", "dmart", "d-mart", "reliance fresh", "jiomart", "spencer", 
+            "nature basket", "easyday", "more", "big bazaar", "metro cash", "smart bazaar",
+            
+            // Transportation
+            "uber", "ola", "rapido", "meru", "quick ride", "blablacar", "bounce", "yulu", "vogo",
+            "namma metro", "delhi metro", "mumbai metro", "irctc", "railway", "redbus", "abhibus",
+            "uber auto", "ola auto", "zoom car", "revv", "drivezy", "ixigo",
+            
+            // Travel & Hospitality
+            "makemytrip", "goibibo", "yatra", "cleartrip", "easemytrip", "airbnb", "oyo", "treebo",
+            "fabhotels", "taj hotels", "marriott", "hilton", "agoda", "booking.com", "expedia",
+            "via.com", "trivago", "holiday inn", "lemontree", "radisson", "airasia", "indigo",
+            "spicejet", "vistara", "air india", "emirates", "etihad", "lufthansa", "british airways",
+            
+            // Entertainment 
+            "bookmyshow", "paytm movies", "netflix", "prime video", "amazon prime", "hotstar", 
+            "disney+", "sony liv", "zee5", "voot", "alt balaji", "jiocinema", "mxplayer", 
+            "gaana", "spotify", "wynk", "youtube premium", "jiosaavn", "apple music", "tinder",
+            "bumble", "pubg", "freefire", "ludo king", "rummy circle", "dream11", "mpl", "winzo",
+            
+            // Payments/Wallets
+            "paytm", "phonepe", "gpay", "google pay", "amazon pay", "mobikwik", "freecharge", 
+            "cred", "slice", "lazypay", "simpl", "jupiter", "ola money", "airtel payments",
+            
+            // Utilities & Bills
+            "airtel", "jio", "vodafone", "bsnl", "mtnl", "tata power", "adani electricity",
+            "mahadiscom", "reliance energy", "bses", "water bill", "gas bill", "indane", "hp gas",
+            "bharat gas", "dish tv", "tatasky", "d2h", "sun direct", "airtel dth", "hathway",
+            "act fibernet", "jio fiber", "bsnl broadband", "fastway",
+            
+            // International Services
+            "facebook", "instagram", "whatsapp", "twitter", "linkedin", "telegram", "snapchat",
+            "tiktok", "clubhouse", "ebay", "apple", "microsoft", "google", "canva", "zoom", 
+            "skype", "slack", "adobe", "dropbox", "office 365", "paypal", "steam",
+            
+            // Edtech
+            "byjus", "unacademy", "vedantu", "upgrad", "coursera", "udemy", "great learning",
+            "whitehat jr", "skillshare", "simplilearn", "testbook", "gradeup", "toppr", "doubtnut",
+            
+            // Fitness & Health
+            "cult.fit", "cure.fit", "healthify", "fitbit", "practo", "medlife", "apollo", "fortis",
+            "max hospital", "manipal", "thyrocare", "lybrate", "fitternity", "healthkart",
+            
+            // Home Services
+            "urbancompany", "urban company", "housejoy", "quikr", "olx", "justdial", "sulekha",
+            "rentomojo", "furlenco", "pepperfry", "ikea", "urban ladder"
         )
     }
     
@@ -74,25 +166,54 @@ class SmsReceiver : BroadcastReceiver() {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
             
             for (sms in messages) {
-                val sender = sms.displayOriginatingAddress
-                val body = sms.messageBody
-                
-                Log.d(TAG, "SMS from: $sender, body: $body")
-                
-                // Check if this is a transaction SMS
-                if (isTransactionSms(sender, body)) {
-                    val transaction = parseTransactionDetails(sender, body)
+                try {
+                    val sender = sms.displayOriginatingAddress?.trim() ?: ""
+                    val body = sms.messageBody?.trim() ?: ""
                     
-                    // Check if automatic transaction mode is enabled
-                    if (preferenceHelper.isAutoTransactionEnabled()) {
-                        // Automatically add the transaction to database
-                        CoroutineScope(Dispatchers.IO).launch {
-                            transactionRepository.processNewTransactionSms(transaction)
+                    // Skip empty messages
+                    if (sender.isBlank() || body.isBlank()) {
+                        Log.d(TAG, "Skipping empty SMS")
+                        continue
+                    }
+                    
+                    // Log the message for debugging (consider removing in production)
+                    Log.d(TAG, "Evaluating SMS from: $sender, body: ${body.take(50)}...")
+                    
+                    // Check if this is a transaction SMS
+                    if (isTransactionSms(sender, body)) {
+                        Log.d(TAG, "Transaction SMS detected!")
+                        
+                        // Parse transaction details
+                        val transaction = parseTransactionDetails(sender, body)
+                        
+                        // Skip if we couldn't extract a valid amount
+                        if (transaction.amount <= 0) {
+                            Log.d(TAG, "Skipping transaction with invalid amount: ${transaction.amount}")
+                            continue
+                        }
+                        
+                        // Log the extracted details
+                        Log.d(TAG, "Extracted: ${transaction.merchantName}, Amount: ${transaction.amount}")
+                        
+                        // Check if automatic transaction mode is enabled
+                        if (preferenceHelper.isAutoTransactionEnabled()) {
+                            // Automatically add the transaction to database
+                            Log.d(TAG, "Auto mode: Adding transaction automatically")
+                            CoroutineScope(Dispatchers.IO).launch {
+                                transactionRepository.processNewTransactionSms(transaction)
+                            }
+                        } else {
+                            // Show notification for manual review
+                            Log.d(TAG, "Manual mode: Showing notification for user review")
+                            NotificationHelper.showTransactionNotification(context, transaction)
                         }
                     } else {
-                        // Show notification for manual review
-                        NotificationHelper.showTransactionNotification(context, transaction)
+                        // Log a message indicating this SMS was not detected as a transaction
+                        Log.d(TAG, "Not a transaction SMS")
                     }
+                } catch (e: Exception) {
+                    // Catch and log any exceptions during SMS processing to avoid crashes
+                    Log.e(TAG, "Error processing SMS: ${e.message}", e)
                 }
             }
         }
@@ -100,6 +221,7 @@ class SmsReceiver : BroadcastReceiver() {
     
     /**
      * Determines if an SMS is a transaction message by checking sender and body patterns
+     * Enhanced with multiple filter layers for improved accuracy
      */
     private fun isTransactionSms(sender: String, body: String): Boolean {
         // Check if sender is a bank or UPI service
@@ -116,55 +238,105 @@ class SmsReceiver : BroadcastReceiver() {
             body.contains(it, ignoreCase = true) 
         }
         
+        // Check if this is a promotional message (which we want to ignore)
+        val isPromotionalMessage = PROMOTIONAL_PATTERNS.any {
+            body.contains(it, ignoreCase = true)
+        }
+        
+        // Check if this is a balance update or account info (which we want to ignore)
+        val isBalanceUpdate = BALANCE_PATTERNS.any {
+            body.contains(it, ignoreCase = true)
+        }
+        
         // Check if this contains debit-related keywords
         val isDebitMessage = DEBIT_PATTERNS.any { 
             body.contains(it, ignoreCase = true) 
         }
         
-        // TESTING MODE: Accept any message with debit patterns that isn't an OTP
-        // Temporarily removing the bank sender requirement
-        return !isOtpMessage && isDebitMessage
+        // Additional criteria: Check for amount patterns
+        val containsAmountPattern = body.contains(Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,]+"))
         
-        // PRODUCTION MODE (commented out for testing)
-        // return (isBankSender || isUpiSender) && !isOtpMessage && isDebitMessage
+        // For production: Only consider messages from known financial senders
+        // that contain transaction keywords and don't appear to be OTPs,
+        // promotional messages, or balance updates
+        return (isBankSender || isUpiSender) && 
+               isDebitMessage && 
+               !isOtpMessage && 
+               !isPromotionalMessage && 
+               !isBalanceUpdate &&
+               containsAmountPattern
     }
     
     /**
      * Extracts transaction details from the SMS body
+     * Enhanced with more robust amount detection patterns
      */
     private fun parseTransactionDetails(sender: String, body: String): TransactionSms {
-        // Extract amount - looking for various formats
-        // Added pattern to detect "Amount X.XX" without currency symbol
-        val amountRegex = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)|(?:amount|charge|bill|fee)\\s+(?:of\\s+)?(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)|(?:USD|\\$)\\s*([\\d.]+)\\s*(?:\\((?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)\\))?")
+        // Extract amount - improved with more comprehensive pattern matching
+        // Handles various currency formats (₹, Rs., INR, USD, $) with proper grouping
+        val primaryAmountRegex = Regex(
+            "(?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)|" +  // Indian currency formats
+            "(?:amount|amt|charge|bill|fee)\\s+(?:of\\s+)?(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)|" +  // "amount of" formats
+            "(?:USD|\\$)\\s*([\\d,.]+)\\s*(?:\\((?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)\\))?|" +  // USD with possible INR conversion
+            "(?:spent|paid|send|sent|paying|received|credited|debited)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)|" +  // Action + amount
+            "(?:for|of|with|worth)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)"  // Preposition + amount
+        )
         
-        val amountMatch = amountRegex.find(body)
+        // Secondary amount regex for simpler number formats
+        val secondaryAmountRegex = Regex(
+            "(?<=\\s|^)(?:Rs\\.?|INR|₹)?\\s*(\\d[\\d,]+\\.?\\d*)(?=\\s|$)|" +  // Numbers that look like amounts
+            "(?<=\\s|^)(\\d+\\.\\d{2})(?=\\s|$)|" +  // Numbers with exactly 2 decimal places
+            "(?:Rs|INR|₹)?\\s*([\\d,]+)"  // Any number after currency symbol
+        )
+        
         var amount = 0.0
         
-        if (amountMatch != null) {
+        // Try primary amount regex first
+        val primaryMatch = primaryAmountRegex.find(body)
+        if (primaryMatch != null) {
             // Try all captured groups for the amount
-            for (i in 1 until amountMatch.groupValues.size) {
-                val value = amountMatch.groupValues[i]
+            for (i in 1 until primaryMatch.groupValues.size) {
+                val value = primaryMatch.groupValues[i]
                 if (value.isNotEmpty()) {
+                    // Clean the value (remove commas) and convert to double
                     amount = value.replace(",", "").toDoubleOrNull() ?: 0.0
                     if (amount > 0) break
                 }
             }
         }
         
-        // If amount is still 0, try a simpler approach with direct number extraction
+        // If amount is still 0, try the secondary regex
         if (amount == 0.0) {
-            // Look for numbers with decimal points that might be amounts
-            val simpleAmountRegex = Regex("\\b(\\d+\\.\\d{1,2})\\b")
-            val simpleMatch = simpleAmountRegex.find(body)
-            if (simpleMatch != null) {
-                amount = simpleMatch.groupValues[1].toDoubleOrNull() ?: 0.0
+            val secondaryMatch = secondaryAmountRegex.find(body)
+            if (secondaryMatch != null) {
+                for (i in 1 until secondaryMatch.groupValues.size) {
+                    val value = secondaryMatch.groupValues[i]
+                    if (value.isNotEmpty()) {
+                        amount = value.replace(",", "").toDoubleOrNull() ?: 0.0
+                        if (amount > 0) break
+                    }
+                }
+            }
+        }
+        
+        // Last resort: find the largest number in the message if it looks like a valid amount
+        if (amount == 0.0) {
+            val numberPattern = Regex("\\b(\\d+(?:,\\d+)*(?:\\.\\d+)?)\\b")
+            val allNumbers = numberPattern.findAll(body)
+                .map { it.groupValues[1].replace(",", "").toDoubleOrNull() ?: 0.0 }
+                .filter { it > 10.0 && it < 1000000.0 } // Reasonable amount range
+                .toList()
+            
+            if (allNumbers.isNotEmpty()) {
+                // Choose the most likely amount (typically the largest number in the SMS)
+                amount = allNumbers.maxOrNull() ?: 0.0
             }
         }
         
         // Enhanced merchant detection with multiple patterns and context awareness
         val merchant = extractMerchantName(body)
         
-        // For now, we'll just use the body as the full SMS
+        // Create and return the transaction object
         return TransactionSms(
             sender = sender,
             body = body,
@@ -176,58 +348,85 @@ class SmsReceiver : BroadcastReceiver() {
     
     /**
      * Advanced merchant name extraction with multiple patterns and cleanup
+     * Enhanced with bank-specific formats and better pattern recognition
      */
     private fun extractMerchantName(body: String): String {
-        // First check for known merchants
+        // First check for known merchants - most reliable approach
         for (merchant in KNOWN_MERCHANTS) {
             if (body.contains(merchant, ignoreCase = true)) {
-                return merchant.replaceFirstChar { it.uppercase() }
+                // Process multi-word merchants correctly
+                return merchant.split(" ")
+                    .joinToString(" ") { word -> 
+                        word.replaceFirstChar { it.uppercase() } 
+                    }
             }
         }
         
-        // Check for Prime membership or subscription messages
-        if (body.contains("prime membership", ignoreCase = true)) {
-            return "Amazon Prime"
-        }
+        // Check for subscription formats
+        val subscriptionPatterns = listOf(
+            Regex("(?:subscription|recurring payment|membership)\\s+(?:for|to)\\s+([A-Za-z0-9\\s&\\-']+)"),
+            Regex("(?:payment to|paid to)\\s+([A-Za-z0-9\\s&\\-']+)\\s+(?:subscription|membership)")
+        )
         
-        // Check for receipt-style messages (Thank you for shopping at X)
-        if (body.contains("thank you for shopping at", ignoreCase = true)) {
-            val match = Regex("shopping at ([A-Za-z0-9\\s&\\-']+)").find(body)
-            if (match != null) {
-                val storeName = match.groupValues[1].trim()
-                if (storeName.isNotEmpty()) {
-                    return storeName
+        for (pattern in subscriptionPatterns) {
+            val match = pattern.find(body)
+            if (match != null && match.groupValues.size > 1) {
+                val name = match.groupValues[1].trim()
+                if (name.length >= 3 && !isPhoneNumber(name)) {
+                    return name.replaceFirstChar { it.uppercase() }
                 }
             }
         }
         
-        // Check for HDFC Bank money transfer pattern
-        if (body.startsWith("Money Transfer:") && body.contains(" to ") && body.contains(" UPI: ")) {
-            try {
-                // Extract text between "to " and " UPI:"
-                val toIndex = body.indexOf(" to ") + 4
-                val upiIndex = body.indexOf(" UPI:", toIndex)
-                if (upiIndex > toIndex) {
-                    val recipient = body.substring(toIndex, upiIndex).trim()
-                    return recipient
-                }
-            } catch (e: Exception) {
-                // If any error occurs, continue with other patterns
+        // Bank-specific patterns - helps with consistent extraction
+        if (body.contains("hdfc", ignoreCase = true)) {
+            // HDFC format: "You've spent Rs.X at MERCHANT_NAME on..."
+            val hdfcPattern = Regex("spent\\s+(?:Rs\\.?|INR|₹)?\\s*[\\d,.]+\\s+(?:at|with|using)\\s+([A-Za-z0-9\\s&\\-']+?)(?:\\s+on|\\s+via|\\s+info|\\.|$)")
+            val match = hdfcPattern.find(body)
+            if (match != null && match.groupValues.size > 1) {
+                return cleanupMerchantName(match.groupValues[1], body)
+            }
+        } else if (body.contains("icici", ignoreCase = true)) {
+            // ICICI format: "Transaction of INR X at MERCHANT_NAME on..."
+            val iciciPattern = Regex("(?:at|in)\\s+([A-Za-z0-9\\s&\\-']+?)(?:\\s+on|\\s+info|\\.|$)")
+            val match = iciciPattern.find(body)
+            if (match != null && match.groupValues.size > 1) {
+                return cleanupMerchantName(match.groupValues[1], body)
+            }
+        } else if (body.contains("sbi", ignoreCase = true)) {
+            // SBI format: "Purchase of INR X at MERCHANT_NAME on card..."
+            val sbiPattern = Regex("(?:at|to|for)\\s+([A-Za-z0-9\\s&\\-']+?)(?:\\s+on|\\s+info|\\s+on\\s+card|\\.|$)")
+            val match = sbiPattern.find(body)
+            if (match != null && match.groupValues.size > 1) {
+                return cleanupMerchantName(match.groupValues[1], body)
             }
         }
         
-        // Common merchant patterns in different bank SMS formats
+        // UPI specific patterns
+        if (body.contains("upi", ignoreCase = true)) {
+            // Look for UPI ID which often contains merchant info: name@upi
+            val upiIdPattern = Regex("([a-zA-Z0-9._-]+)@([a-zA-Z0-9]+)")
+            val match = upiIdPattern.find(body)
+            if (match != null && match.groupValues.size > 1) {
+                val merchantPart = match.groupValues[1].replace(".", " ")
+                if (merchantPart.length > 3) {
+                    return cleanupMerchantName(merchantPart, body)
+                }
+            }
+            
+            // Try to find UPI Ref which sometimes contains merchant info
+            val upiRefPattern = Regex("(?:UPI|VPA):?\\s*([A-Za-z0-9\\s.\\-_@]+)")
+            val refMatch = upiRefPattern.find(body)
+            if (refMatch != null && refMatch.groupValues.size > 1) {
+                return "UPI: ${refMatch.groupValues[1].trim()}"
+            }
+        }
+        
+        // Try the generic patterns (already in original code)
         val patterns = listOf(
-            // "spent at MERCHANT" pattern
             Regex("(?:spent|txn|purchase|payment)\\s+(?:at|in|to|with|via|from)\\s+([A-Za-z0-9\\s&\\-']+?)(?:\\s+on|\\s+for|\\s+info|\\s+[\\d]|\\.|$)"),
-            
-            // "at MERCHANT on" pattern (common in credit card transactions)
             Regex("(?:at|in|to|with|thru)\\s+([A-Za-z0-9\\s&\\-']+?)(?:\\s+on|\\s+for|\\s+info|\\s+[\\d]|\\.|$)"),
-            
-            // "towards MERCHANT" pattern (common in UPI)
             Regex("(?:towards|for|to)\\s+([A-Za-z0-9\\s&\\-']+?)(?:\\s+on|\\s+info|\\s+[\\d]|\\.|$)"),
-            
-            // "MERCHANT-LOCATION" pattern (with info)
             Regex("(?:at|in|to)\\s+([A-Za-z0-9\\s&\\-']+?)-([A-Za-z0-9\\s]+?)(?:\\s+on|\\s+info|\\s+[\\d]|\\.|$)")
         )
         
@@ -241,25 +440,46 @@ class SmsReceiver : BroadcastReceiver() {
                     continue
                 }
                 // Clean up and validate before returning
-                return cleanupMerchantName(extracted, body)
+                val cleaned = cleanupMerchantName(extracted, body)
+                if (cleaned != "Unknown Merchant") {
+                    return cleaned
+                }
             }
         }
         
-        // Fallback to UPI ID detection if no other patterns match
-        val upiPattern = Regex("UPI-([A-Za-z0-9\\-@\\.]+)")
-        val upiMatch = upiPattern.find(body)
-        if (upiMatch != null) {
-            return "UPI: ${upiMatch.groupValues[1]}"
+        // Fallback to trying to extract the most distinctive capitalized words
+        val capitalizedWords = Regex("\\b[A-Z][A-Za-z]{2,}\\b")
+            .findAll(body)
+            .map { it.value }
+            .filter { !isCommonWord(it) }
+            .toList()
+        
+        if (capitalizedWords.isNotEmpty()) {
+            val candidateWord = capitalizedWords.first()
+            return candidateWord
         }
         
-        // If all else fails, try to extract any distinctive part
-        val fallbackPattern = Regex("(?:txn|Txn|TXN|Ref)[\\s:]*([A-Za-z0-9]+)")
+        // Last resort - try to find any reference number
+        val fallbackPattern = Regex("(?:Ref|ref|REF|txn|Txn|TXN)[\\s:]*([A-Za-z0-9]+)")
         val fallbackMatch = fallbackPattern.find(body)
         if (fallbackMatch != null) {
-            return "Transaction ${fallbackMatch.groupValues[1]}"
+            return "Txn: ${fallbackMatch.groupValues[1]}"
         }
         
         return "Unknown Merchant"
+    }
+    
+    /**
+     * Check if a word is a common non-merchant word that should be ignored
+     */
+    private fun isCommonWord(word: String): Boolean {
+        val commonWords = setOf(
+            "INR", "AMOUNT", "PAYMENT", "TRANSACTION", "DEBIT", "CREDIT", "BANK",
+            "ACCOUNT", "CARD", "YOUR", "THANK", "THANKS", "INFO", "ALERT", "MESSAGE",
+            "REGARDS", "AVAILABLE", "BALANCE", "MONEY", "PAID", "RECEIVED", "FROM",
+            "TRANSFER", "DATE", "TIME", "DEBITED", "CREDITED", "SEND", "SENT"
+        )
+        return commonWords.contains(word.uppercase())
     }
     
     /**

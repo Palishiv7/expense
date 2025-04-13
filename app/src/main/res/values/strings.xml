@@ -25,4 +25,16 @@
     <string name="transaction_mode_auto_description">Automatically add all detected transactions</string>
     <string name="transaction_mode_manual_description">Review transactions via notifications</string>
     <string name="choose_transaction_mode">How do you want to handle transactions?</string>
+    
+    <!-- Add Transaction Screen -->
+    <string name="add_transaction_title">Add Transaction</string>
+    <string name="merchant">Merchant/Payee</string>
+    <string name="amount_hint">₹0.00</string>
+    <string name="merchant_hint">e.g. Grocery Store, Electricity Bill</string>
+    <string name="category_hint">e.g. Food, Transport, Shopping</string>
+    <string name="description_hint">Add notes about this transaction</string>
+    <string name="description_optional">Description (Optional)</string>
+    <string name="save_transaction">SAVE TRANSACTION</string>
+    <string name="expense">Expense</string>
+    <string name="income">Income</string>
 </resources> 

@@ -30,6 +30,7 @@ import com.moneypulse.app.ui.dialog.TransactionModeDialog
 import com.moneypulse.app.ui.home.HomeScreen
 import com.moneypulse.app.ui.home.viewmodel.HomeViewModel
 import com.moneypulse.app.ui.settings.SettingsScreen
+import com.moneypulse.app.ui.transactions.AddTransactionScreen
 import com.moneypulse.app.ui.transactions.TransactionsScreen
 import com.moneypulse.app.util.PreferenceHelper
 import dagger.hilt.android.AndroidEntryPoint
@@ -197,13 +198,16 @@ fun MainScreen() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Home.route) {
-                HomeScreen(viewModel = homeViewModel)
+                HomeScreen(viewModel = homeViewModel, navController = navController)
             }
             composable(Screen.Transactions.route) {
                 TransactionsScreen()
             }
             composable(Screen.Settings.route) {
                 SettingsScreen()
+            }
+            composable("add_transaction") {
+                AddTransactionScreen(navController = navController)
             }
         }
     }

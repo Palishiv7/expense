@@ -35,6 +35,10 @@ class HomeViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     
+    // Navigation event for adding manual transaction
+    private val _navigateToAddTransaction = MutableStateFlow(false)
+    val navigateToAddTransaction: StateFlow<Boolean> = _navigateToAddTransaction.asStateFlow()
+    
     init {
         // Load data when ViewModel is created
         loadData()
@@ -81,9 +85,16 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Add a manual transaction (to be implemented in Phase 2)
+     * Add a manual transaction - triggers navigation to add transaction screen
      */
     fun addManualTransaction() {
-        // This will be implemented in Phase 2
+        _navigateToAddTransaction.value = true
+    }
+    
+    /**
+     * Called after navigation is handled to reset the state
+     */
+    fun onAddTransactionNavigated() {
+        _navigateToAddTransaction.value = false
     }
 } 
