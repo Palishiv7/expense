@@ -12,6 +12,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Fetch all history for proper versioning
     
     - name: Set up JDK 17
       uses: actions/setup-java@v3
@@ -19,191 +21,102 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: gradle
-
-    - name: Debug Directory Structure
+    
+    # Improved caching strategy
+    - name: Cache Gradle Dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          ~/.android/build-cache
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+    
+    # Auto-versioning setup
+    - name: Set up Version Code
+      id: version-code
       run: |
-        echo "Current directory: $(pwd)"
-        ls -la
-        echo "Searching for gradlew file:"
-        find . -name "gradlew" -type f
-        echo "Searching for build.gradle files:"
-        find . -name "build.gradle" -type f
-        
-    - name: Create temporary gradle.properties
-      run: |
-        # Create a minimal gradle.properties without the Windows-specific Java home
-        echo "org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8" > /tmp/gradle.properties
-        echo "android.useAndroidX=true" >> /tmp/gradle.properties
+        # Use GitHub Run ID for version code to ensure it's always increasing
+        VERSION_CODE=${{ github.run_number }}
+        # Add short SHA as a version name suffix
+        SHORT_SHA=$(git rev-parse --short HEAD)
+        VERSION_NAME="1.0.0-$SHORT_SHA"
+        echo "Generated Version Code: $VERSION_CODE"
+        echo "Generated Version Name: $VERSION_NAME"
+        echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+        echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+        echo "::set-output name=version_code::$VERSION_CODE"
+        echo "::set-output name=version_name::$VERSION_NAME"
         
     - name: Setup Gradle
       run: |
-        # Find build.gradle in the root or subdirectories
-        ROOT_BUILD_GRADLE=$(find . -maxdepth 2 -name "build.gradle" -type f | head -n 1)
-        
-        if [ -z "$ROOT_BUILD_GRADLE" ]; then
-          echo "No build.gradle found in expected locations"
-          exit 1
+        # Make gradlew executable
+        if [ -f "./gradlew" ]; then
+          chmod +x ./gradlew
+        else
+          echo "No gradlew file found in root directory"
+          find . -name "gradlew" -type f -exec chmod +x {} \;
         fi
         
-        # Get the directory containing build.gradle
-        PROJECT_DIR=$(dirname "$ROOT_BUILD_GRADLE")
-        echo "Project directory: $PROJECT_DIR"
-        
-        # Find settings.gradle to determine the root project directory
-        ROOT_PROJECT_DIR=$(find . -maxdepth 2 -name "settings.gradle" -type f | head -n 1 | xargs dirname)
-        if [ -z "$ROOT_PROJECT_DIR" ]; then
-          # If settings.gradle not found, use the current directory as root
-          ROOT_PROJECT_DIR="."
-        fi
-        echo "Root project directory: $ROOT_PROJECT_DIR"
-        
-        # Find gradlew file
-        GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
-        
-        if [ -z "$GRADLEW_PATH" ]; then
-          echo "No gradlew file found, generating wrapper"
-          # Install Gradle
-          wget -q https://services.gradle.org/distributions/gradle-8.0-bin.zip
-          unzip -q gradle-8.0-bin.zip
-          export PATH=$PATH:$(pwd)/gradle-8.0/bin
-          
-          # Generate wrapper in the ROOT project directory
-          cd "$ROOT_PROJECT_DIR"
-          # Backup any existing gradle.properties
-          if [ -f "gradle.properties" ]; then
-            mv gradle.properties gradle.properties.bak
-          fi
-          # Use our temporary gradle.properties
-          cp /tmp/gradle.properties ./gradle.properties
-          
-          # Generate wrapper with explicitly set JAVA_HOME
-          JAVA_OPTS="-Dorg.gradle.java.home=$JAVA_HOME" gradle wrapper
-          
-          # Restore original gradle.properties if it existed
-          if [ -f "gradle.properties.bak" ]; then
-            mv gradle.properties.bak gradle.properties
-          fi
-          
-          cd - > /dev/null
-          
-          # Find the newly created gradlew
+    - name: Build Debug APK
+      run: |
+        # Apply version code and name if gradlew exists in root
+        if [ -f "./gradlew" ]; then
+          ./gradlew assembleDebug \
+          --no-daemon \
+          --stacktrace \
+          -PversionCode=${{ env.VERSION_CODE }} \
+          -PversionName=${{ env.VERSION_NAME }}
+        else
+          # Try to find gradlew in subdirectories
           GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
-          
-          if [ -z "$GRADLEW_PATH" ]; then
-            echo "Failed to generate Gradle wrapper"
+          if [ -n "$GRADLEW_PATH" ]; then
+            echo "Using gradlew at: $GRADLEW_PATH"
+            $GRADLEW_PATH assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            -PversionCode=${{ env.VERSION_CODE }} \
+            -PversionName=${{ env.VERSION_NAME }}
+          else
+            echo "Failed to find gradlew file"
             exit 1
           fi
         fi
-        
-        # Make gradlew executable
-        chmod +x "$GRADLEW_PATH"
-        
-        # Always use absolute paths to avoid confusion
-        GRADLEW_ABSOLUTE_PATH=$(realpath "$GRADLEW_PATH")
-        ROOT_DIR=$(dirname "$GRADLEW_ABSOLUTE_PATH")
-        
-        # Save the paths for later steps
-        echo "GRADLEW_PATH=$GRADLEW_ABSOLUTE_PATH" >> $GITHUB_ENV
-        echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
-        echo "ROOT_DIR=$ROOT_DIR" >> $GITHUB_ENV
-        
-        echo "Using gradlew at: $GRADLEW_ABSOLUTE_PATH"
-        echo "Root directory: $ROOT_DIR"
-        echo "Project directory: $PROJECT_DIR"
-      
-    - name: Build with Gradle
+    
+    - name: Find APK
+      id: find-apk
       run: |
-        # Always run Gradle commands from the directory containing gradlew
-        cd "${{ env.ROOT_DIR }}"
-        echo "=== CURRENT DIRECTORY ==="
-        pwd
-        ls -la
-        echo ""
-        
-        # List the app directory contents
-        if [ -d "app" ]; then
-          echo "=== APP DIRECTORY CONTENTS ==="
-          ls -la app/
-          echo ""
+        # Find all generated APK files
+        APK_FILES=$(find . -name "*.apk" -type f)
+        if [ -z "$APK_FILES" ]; then
+          echo "No APK files found!"
+          exit 1
         fi
         
-        # Run gradle commands
-        echo "=== GRADLE PROJECTS ==="
-        "${{ env.GRADLEW_PATH }}" projects -Dorg.gradle.java.home=$JAVA_HOME || echo "Project listing failed"
-        echo ""
+        # Use the most recently modified APK
+        LATEST_APK=$(ls -t $APK_FILES | head -n 1)
+        echo "Found APK: $LATEST_APK"
+        echo "APK_PATH=$LATEST_APK" >> $GITHUB_ENV
+        echo "::set-output name=apk_path::$LATEST_APK"
         
-        echo "=== GRADLE TASKS ==="
-        "${{ env.GRADLEW_PATH }}" tasks -Dorg.gradle.java.home=$JAVA_HOME || echo "Task listing failed"
-        echo ""
-        
-        # Skip the full build and only check if the project can be evaluated
-        echo "=== PROJECT EVALUATION ==="
-        "${{ env.GRADLEW_PATH }}" help -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0 || echo "Project evaluation failed but continuing"
-      
-    - name: Build Debug APK
-      run: |
-        # Always run Gradle commands from the directory containing gradlew
-        cd "${{ env.ROOT_DIR }}"
-        echo "=== BUILDING FROM ROOT DIRECTORY ==="
-        pwd
-        ls -la
-        
-        # Show what's in the app directory if it exists
-        if [ -d "app" ]; then
-          echo "App directory exists, building APK with explicit path"
-          echo "=== APP DIRECTORY CONTENTS ==="
-          ls -la app/
-          
-          echo "=== BUILDING DEBUG APK ONLY ==="
-          "${{ env.GRADLEW_PATH }}" :app:assembleDebug --stacktrace -x lint -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0
-          
-          # Check build output even if the command failed
-          echo "=== CHECKING FOR APK OUTPUT ==="
-          find app -name "*.apk" -type f
-        else
-          # Use generic assembleDebug for non-standard project structure
-          echo "No app directory found, trying generic assembleDebug"
-          "${{ env.GRADLEW_PATH }}" assembleDebug --stacktrace -x lint -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0
-          
-          # Check for APK file
-          echo "=== CHECKING FOR APK OUTPUT ==="
-          find . -name "*.apk" -type f
-        fi
-      
-    - name: Debug APK Output Directory
-      run: |
-        echo "=== PROJECT STRUCTURE ==="
-        find . -type d -maxdepth 3 | sort
-        
-        echo "=== BUILD OUTPUTS ==="
-        find . -path "*/build/*" -type d | sort
-        
-        echo "=== LOOKING FOR APK FILES ==="
-        find . -name "*.apk" -type f
-        
-        # Also try to find any output files as fallback
-        echo "=== OTHER OUTPUT FILES ==="
-        find . -path "*/build/outputs/*" -type f | head -n 10
-        
-        # Save APK path for upload (or fallback to any file in outputs)
-        APK_PATH=$(find . -name "*.apk" -type f | head -n 1)
-        if [ -z "$APK_PATH" ]; then
-          # Fallback to any file in outputs directory
-          APK_PATH=$(find . -path "*/build/outputs/*" -type f | head -n 1)
-        fi
-        
-        if [ -n "$APK_PATH" ]; then
-          echo "Found output at: $APK_PATH"
-          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
-        else
-          # Create a dummy file if nothing found
-          echo "No output files found, creating fallback file"
-          echo "Build completed but no APK was generated" > build-log.txt
-          echo "APK_PATH=build-log.txt" >> $GITHUB_ENV
-        fi
+        # Extract APK filename
+        APK_FILENAME=$(basename "$LATEST_APK")
+        echo "APK_FILENAME=$APK_FILENAME" >> $GITHUB_ENV
+        echo "::set-output name=apk_filename::$APK_FILENAME"
 
-    - name: Upload Build Output
-      uses: actions/upload-artifact@master
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v3
       with:
-        name: build-output
-        path: ${{ env.APK_PATH || 'build-log.txt' }} 
+        name: app-debug-${{ env.VERSION_NAME }}
+        path: ${{ env.APK_PATH }}
+        
+    # Create GitHub Release for tagged commits
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: ${{ env.APK_PATH }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

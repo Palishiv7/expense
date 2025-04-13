@@ -171,19 +171,23 @@ fun TransactionTypeSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            TransactionTypeButton(
-                text = stringResource(R.string.expense),
-                isSelected = isExpense,
-                color = Color(0xFFE53935),
-                onClick = { if (!isExpense) onToggle() }
-            )
+            Box(modifier = Modifier.weight(1f)) {
+                TransactionTypeButton(
+                    text = stringResource(R.string.expense),
+                    isSelected = isExpense,
+                    color = Color(0xFFE53935),
+                    onClick = { if (!isExpense) onToggle() }
+                )
+            }
             
-            TransactionTypeButton(
-                text = stringResource(R.string.income),
-                isSelected = !isExpense,
-                color = Color(0xFF43A047),
-                onClick = { if (isExpense) onToggle() }
-            )
+            Box(modifier = Modifier.weight(1f)) {
+                TransactionTypeButton(
+                    text = stringResource(R.string.income),
+                    isSelected = !isExpense,
+                    color = Color(0xFF43A047),
+                    onClick = { if (isExpense) onToggle() }
+                )
+            }
         }
     }
 }
@@ -210,7 +214,7 @@ fun TransactionTypeButton(
         ),
         modifier = Modifier
             .padding(4.dp)
-            .weight(1f)
+            .fillMaxWidth()
     ) {
         Text(
             text = text,
