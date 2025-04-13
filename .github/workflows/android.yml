@@ -47,8 +47,8 @@ jobs:
         echo "Generated Version Name: $VERSION_NAME"
         echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
         echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
-        echo "::set-output name=version_code::$VERSION_CODE"
-        echo "::set-output name=version_name::$VERSION_NAME"
+        echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+        echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
         
     - name: Setup Gradle
       run: |
@@ -99,15 +99,15 @@ jobs:
         LATEST_APK=$(ls -t $APK_FILES | head -n 1)
         echo "Found APK: $LATEST_APK"
         echo "APK_PATH=$LATEST_APK" >> $GITHUB_ENV
-        echo "::set-output name=apk_path::$LATEST_APK"
+        echo "apk_path=$LATEST_APK" >> $GITHUB_OUTPUT
         
         # Extract APK filename
         APK_FILENAME=$(basename "$LATEST_APK")
         echo "APK_FILENAME=$APK_FILENAME" >> $GITHUB_ENV
-        echo "::set-output name=apk_filename::$APK_FILENAME"
+        echo "apk_filename=$APK_FILENAME" >> $GITHUB_OUTPUT
 
     - name: Upload Debug APK
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v3.1.2
       with:
         name: app-debug-${{ env.VERSION_NAME }}
         path: ${{ env.APK_PATH }}
