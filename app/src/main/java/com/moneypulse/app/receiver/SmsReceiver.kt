@@ -333,6 +333,19 @@ class SmsReceiver : BroadcastReceiver() {
             return false
         }
         
+        // Check if this is a credit transaction (money received) - WE SKIP THESE
+        val isCreditTransaction = body.contains("credited", ignoreCase = true) || 
+                                 body.contains("received", ignoreCase = true) ||
+                                 body.contains("added to", ignoreCase = true) ||
+                                 body.contains("deposited", ignoreCase = true) ||
+                                 body.contains("credit", ignoreCase = true)
+        
+        if (isCreditTransaction) {
+            Log.d(TAG, "SMS rejected: Credit transaction (money received) - we only track expenses")
+            captureLog("SMS rejected: Credit transaction (money received) - we only track expenses")
+            return false
+        }
+        
         // Additional criteria: Check for amount patterns with enhanced regex
         val amountPatterns = listOf(
             // Common Indian formats
@@ -452,11 +465,18 @@ class SmsReceiver : BroadcastReceiver() {
             }
         }
         
-        // Determine if this is likely a debit/expense based on message content
-        val isLikelyDebit = DEBIT_PATTERNS.any { body.contains(it, ignoreCase = true) }
+        // Properly determine transaction type (expense/debit vs income/credit)
+        val isDebitTransaction = body.contains("debited", ignoreCase = true) || 
+                               body.contains("spent", ignoreCase = true) || 
+                               body.contains("debit", ignoreCase = true) || 
+                               body.contains("withdrawn", ignoreCase = true) ||
+                               body.contains("sent", ignoreCase = true) ||
+                               body.contains("paid", ignoreCase = true) ||
+                               body.contains("purchase", ignoreCase = true) ||
+                               body.contains("payment", ignoreCase = true)
         
-        // Make amount negative for debits - this handles expense transactions from all banks uniformly
-        if (isLikelyDebit && amount > 0) {
+        // Make amount negative ONLY for debit transactions 
+        if (isDebitTransaction && amount > 0) {
             amount = -amount
             captureLog("Converting to negative amount for debit transaction: $amount")
         }
