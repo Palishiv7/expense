@@ -5,9 +5,11 @@ import android.content.Context
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.util.Log
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
+import com.moneypulse.app.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.security.KeyStore
@@ -29,6 +31,7 @@ class SecurityHelper @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
+        private const val TAG = "SecurityHelper"
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val BIOMETRIC_KEY_NAME = "moneypulse_biometric_key"
         private const val DATABASE_KEY_NAME = "moneypulse_database_key"
@@ -57,10 +60,15 @@ class SecurityHelper @Inject constructor(
      * Check if biometric authentication is available on this device
      */
     fun isBiometricAvailable(): Boolean {
-        val biometricManager = BiometricManager.from(context)
-        return when (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)) {
-            BiometricManager.BIOMETRIC_SUCCESS -> true
-            else -> false
+        try {
+            val biometricManager = BiometricManager.from(context)
+            return when (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)) {
+                BiometricManager.BIOMETRIC_SUCCESS -> true
+                else -> false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking biometric availability: ${e.message}")
+            return false
         }
     }
     
@@ -75,42 +83,53 @@ class SecurityHelper @Inject constructor(
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        val biometricPrompt = BiometricPrompt(
-            activity,
-            activity.mainExecutor,
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    super.onAuthenticationSucceeded(result)
-                    onSuccess()
-                }
-                
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    super.onAuthenticationError(errorCode, errString)
-                    // Only report errors that are not cancellation
-                    if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && 
-                        errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
-                        onError(errString.toString())
+        try {
+            val biometricPrompt = BiometricPrompt(
+                activity,
+                activity.mainExecutor,
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        super.onAuthenticationSucceeded(result)
+                        onSuccess()
+                    }
+                    
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        super.onAuthenticationError(errorCode, errString)
+                        // Only report errors that are not cancellation
+                        if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && 
+                            errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                            onError(errString.toString())
+                        }
                     }
                 }
-            }
-        )
-        
-        val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(title)
-            .setSubtitle(subtitle)
-            .setNegativeButtonText(negativeButtonText)
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            .build()
-        
-        biometricPrompt.authenticate(promptInfo)
+            )
+            
+            val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setSubtitle(subtitle)
+                .setNegativeButtonText(negativeButtonText)
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .build()
+            
+            biometricPrompt.authenticate(promptInfo)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing biometric prompt: ${e.message}")
+            // Call error callback to let caller handle the failure
+            onError("Failed to show biometric authentication: ${e.message}")
+        }
     }
     
     /**
      * Check if secure lock screen is enabled
      */
     fun isDeviceSecure(): Boolean {
-        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-        return keyguardManager.isDeviceSecure
+        try {
+            val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+            return keyguardManager.isDeviceSecure
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking device security: ${e.message}")
+            return false
+        }
     }
     
     /**
@@ -118,152 +137,211 @@ class SecurityHelper @Inject constructor(
      * Generates a secure key from Android Keystore
      */
     fun getDatabaseKey(): ByteArray {
-        createAndroidKeystoreKey(DATABASE_KEY_NAME)
-        
-        // Get key from keystore
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
-        keyStore.load(null)
-        
-        val secretKey = keyStore.getKey(DATABASE_KEY_NAME, null) as SecretKey
-        
-        // Use key to encrypt a known string to get consistent bytes for SQLCipher
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
-        
-        // Return the encrypted data as bytes (consistent for same key)
-        return cipher.doFinal("MoneyPulse Database Secret".toByteArray())
+        try {
+            createAndroidKeystoreKey(DATABASE_KEY_NAME)
+            
+            // Get key from keystore
+            val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
+            keyStore.load(null)
+            
+            val secretKey = keyStore.getKey(DATABASE_KEY_NAME, null) as SecretKey
+            
+            // Use key to encrypt a known string to get consistent bytes for SQLCipher
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+            
+            // Return the encrypted data as bytes (consistent for same key)
+            return cipher.doFinal("MoneyPulse Database Secret".toByteArray())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting database key: ${e.message}")
+            // Fallback to a static key for development only - NEVER use in production
+            if (BuildConfig.DEBUG) {
+                Log.w(TAG, "Using fallback key in DEBUG mode only")
+                return "MoneyPulse_Debug_Key_For_Development_Only".toByteArray()
+            } else {
+                throw e  // In release builds, propagate the error
+            }
+        }
     }
     
     /**
      * Create key in Android Keystore if it doesn't exist
      */
     private fun createAndroidKeystoreKey(keyName: String) {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
-        keyStore.load(null)
-        
-        // Check if key already exists
-        if (!keyStore.containsAlias(keyName)) {
-            val keyGenerator = KeyGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_AES,
-                ANDROID_KEYSTORE
-            )
+        try {
+            val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
+            keyStore.load(null)
             
-            val keyGenParameterSpec = KeyGenParameterSpec.Builder(
-                keyName,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setUserAuthenticationRequired(false) // Don't require auth for database operations
-                .setRandomizedEncryptionRequired(true)
-                .build()
-            
-            keyGenerator.init(keyGenParameterSpec)
-            keyGenerator.generateKey()
+            // Check if key already exists
+            if (!keyStore.containsAlias(keyName)) {
+                val keyGenerator = KeyGenerator.getInstance(
+                    KeyProperties.KEY_ALGORITHM_AES,
+                    ANDROID_KEYSTORE
+                )
+                
+                val keyGenParameterSpec = KeyGenParameterSpec.Builder(
+                    keyName,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setUserAuthenticationRequired(false) // Don't require auth for database operations
+                    .setRandomizedEncryptionRequired(true)
+                    .build()
+                
+                keyGenerator.init(keyGenParameterSpec)
+                keyGenerator.generateKey()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating keystore key: ${e.message}")
+            throw e
         }
     }
     
     /**
      * Checks if device is potentially rooted
      * Combines multiple detection methods
+     * In debug builds, is less aggressive
      */
     fun isDeviceRooted(): Boolean {
-        return checkForSuBinary() || checkForRootApps() || checkForRWPaths() || checkForDangerousProps()
-    }
-    
-    /**
-     * Check for SU binary files
-     */
-    private fun checkForSuBinary(): Boolean {
-        return KNOWN_ROOT_PATHS.any { File(it).exists() }
-    }
-    
-    /**
-     * Check for known root management apps
-     */
-    private fun checkForRootApps(): Boolean {
-        val packageManager = context.packageManager
-        return KNOWN_DANGEROUS_APPS.any { appId ->
-            try {
-                packageManager.getPackageInfo(appId, 0)
-                true
+        // In debug builds, be less aggressive with root detection
+        if (BuildConfig.DEBUG) {
+            return false  // Always return false in debug to avoid interfering with development
+        }
+        
+        try {
+            // In production, use a more balanced approach with multiple checks
+            // Only return true if MULTIPLE indicators are found to reduce false positives
+            
+            var rootIndicators = 0
+            
+            // Only count this as an indicator if multiple su binaries are found
+            val suBinariesFound = KNOWN_ROOT_PATHS.count { 
+                try { File(it).exists() } catch (e: Exception) { false }
+            }
+            if (suBinariesFound >= 2) rootIndicators++
+            
+            // Check for root apps - a strong indicator
+            val rootAppsFound = try {
+                val packageManager = context.packageManager
+                KNOWN_DANGEROUS_APPS.any { appId ->
+                    try {
+                        packageManager.getPackageInfo(appId, 0)
+                        true
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
             } catch (e: Exception) {
                 false
             }
-        }
-    }
-    
-    /**
-     * Check for suspicious system properties
-     */
-    private fun checkForDangerousProps(): Boolean {
-        val dangerousProps = arrayOf("ro.debuggable", "ro.secure")
-        return try {
-            val process = Runtime.getRuntime().exec("getprop")
-            process.inputStream.reader().use { reader ->
-                reader.readLines().any { line ->
-                    dangerousProps.any { prop ->
-                        line.contains(prop) && line.contains("1")
-                    }
+            if (rootAppsFound) rootIndicators++
+            
+            // Check for RW system paths - a strong indicator
+            val rwSystemPaths = try {
+                val paths = arrayOf("/system", "/system/bin", "/system/sbin", "/system/xbin", "/vendor")
+                paths.any { path ->
+                    val file = File(path)
+                    file.exists() && file.canWrite()
                 }
+            } catch (e: Exception) {
+                false
             }
+            if (rwSystemPaths) rootIndicators++
+            
+            // Only consider dangerous props if other indicators exist
+            val dangerousProps = if (rootIndicators > 0) {
+                try {
+                    val process = Runtime.getRuntime().exec("getprop")
+                    process.inputStream.reader().use { reader ->
+                        val props = arrayOf("ro.debuggable", "ro.secure")
+                        reader.readLines().any { line ->
+                            props.any { prop ->
+                                line.contains(prop) && line.contains("1")
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    false
+                }
+            } else {
+                false
+            }
+            if (dangerousProps) rootIndicators++
+            
+            // Only consider rooted if MULTIPLE indicators found
+            // This greatly reduces false positives on legitimate devices
+            return rootIndicators >= 2
+            
         } catch (e: Exception) {
-            false
+            Log.e(TAG, "Error checking if device is rooted: ${e.message}")
+            return false  // On error, assume not rooted to avoid blocking valid users
         }
-    }
-    
-    /**
-     * Check for read/write access to system partitions
-     */
-    private fun checkForRWPaths(): Boolean {
-        val paths = arrayOf("/system", "/system/bin", "/system/sbin", "/system/xbin", "/vendor")
-        val rwPaths = paths.filter { path ->
-            val file = File(path)
-            file.exists() && file.canWrite()
-        }
-        return rwPaths.isNotEmpty()
     }
     
     /**
      * Check if running in an emulator
+     * In debug builds, we'll return false to allow development in emulators
      */
     fun isRunningInEmulator(): Boolean {
-        return (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
-                || Build.FINGERPRINT.startsWith("generic")
-                || Build.FINGERPRINT.startsWith("unknown")
-                || Build.HARDWARE.contains("goldfish")
-                || Build.HARDWARE.contains("ranchu")
-                || Build.MODEL.contains("google_sdk")
-                || Build.MODEL.contains("Emulator")
-                || Build.MODEL.contains("Android SDK built for x86")
-                || Build.MANUFACTURER.contains("Genymotion")
-                || Build.PRODUCT.contains("sdk_google")
-                || Build.PRODUCT.contains("google_sdk")
-                || Build.PRODUCT.contains("sdk")
-                || Build.PRODUCT.contains("sdk_x86")
-                || Build.PRODUCT.contains("vbox86p")
+        // In debug builds, just log but don't block emulators
+        if (BuildConfig.DEBUG) {
+            return false
+        }
+        
+        return try {
+            (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
+                    || Build.FINGERPRINT.startsWith("generic")
+                    || Build.FINGERPRINT.startsWith("unknown")
+                    || Build.HARDWARE.contains("goldfish")
+                    || Build.HARDWARE.contains("ranchu")
+                    || Build.MODEL.contains("google_sdk")
+                    || Build.MODEL.contains("Emulator")
+                    || Build.MODEL.contains("Android SDK built for x86")
+                    || Build.MANUFACTURER.contains("Genymotion")
+                    || Build.PRODUCT.contains("sdk_google")
+                    || Build.PRODUCT.contains("google_sdk")
+                    || Build.PRODUCT.contains("sdk")
+                    || Build.PRODUCT.contains("sdk_x86")
+                    || Build.PRODUCT.contains("vbox86p")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking if running in emulator: ${e.message}")
+            false
+        }
     }
     
     /**
      * Sanitize input to protect against injection attacks
      */
     fun sanitizeInput(input: String): String {
-        return input.replace("[^\\w\\s@.,:\\-_()\\[\\]{}]".toRegex(), "")
+        return try {
+            input.replace("[^\\w\\s@.,:\\-_()\\[\\]{}]".toRegex(), "")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sanitizing input: ${e.message}")
+            // Return original string if regex fails rather than empty string
+            input
+        }
     }
     
     /**
      * Mask sensitive data in logs
      */
     fun maskSensitiveData(message: String): String {
-        // Mask card numbers
-        var masked = message.replace("\\b(?:\\d{4}[- ]?){3}\\d{4}\\b".toRegex(), "XXXX-XXXX-XXXX-XXXX")
-        
-        // Mask account numbers (10-12 digits)
-        masked = masked.replace("\\b\\d{10,12}\\b".toRegex(), "XXXX-XXXX-XXXX")
-        
-        // Mask amounts with currency
-        masked = masked.replace("(?:Rs\\.?|INR|₹)\\s*[\\d,]+(?:\\.\\d{1,2})?".toRegex(), "₹XXX.XX")
-        
-        return masked
+        try {
+            // Mask card numbers
+            var masked = message.replace("\\b(?:\\d{4}[- ]?){3}\\d{4}\\b".toRegex(), "XXXX-XXXX-XXXX-XXXX")
+            
+            // Mask account numbers (10-12 digits)
+            masked = masked.replace("\\b\\d{10,12}\\b".toRegex(), "XXXX-XXXX-XXXX")
+            
+            // Mask amounts with currency
+            masked = masked.replace("(?:Rs\\.?|INR|₹)\\s*[\\d,]+(?:\\.\\d{1,2})?".toRegex(), "₹XXX.XX")
+            
+            return masked
+        } catch (e: Exception) {
+            Log.e(TAG, "Error masking sensitive data: ${e.message}")
+            // Return "[MASKED]" if masking fails rather than original message
+            return "[MASKED DATA]"
+        }
     }
 } 

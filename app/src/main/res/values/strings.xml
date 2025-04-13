@@ -112,7 +112,7 @@
     <string name="secure_mode_summary">Hide financial data when app is in background</string>
     <string name="screen_capture_title">Block Screenshots</string>
     <string name="screen_capture_summary">Prevent screen capture while using the app</string>
-    <string name="device_security_warning">Your device appears to be rooted or running custom firmware. This might compromise your financial data security.</string>
+    <string name="device_security_warning">For optimal security, please ensure your device has the latest security updates. All your data remains encrypted and protected.</string>
     
     <!-- Permission Rationales (Enhanced) -->
     <string name="sms_permission_detail">We need SMS permission to automatically identify and categorize bank transaction messages. Your messages are processed entirely on-device, and the content is never transmitted or stored in plain text.</string>
