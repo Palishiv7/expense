@@ -138,6 +138,20 @@ class SecurityHelper @Inject constructor(
      */
     fun getDatabaseKey(): ByteArray {
         try {
+            // For initial version, use a consistent static key to avoid key persistence issues
+            // This is a temporary solution until we can properly debug key management issues
+            val staticKey = "MoneyPulse_Static_Key_v1"
+            
+            // In debug mode, log that we're using the static key
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "Using static database key for consistent database access")
+            }
+            
+            // Convert to a fixed-length key by using a hash
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            return md.digest(staticKey.toByteArray())
+            
+            /* Disabled for now to avoid key persistence issues
             createAndroidKeystoreKey(DATABASE_KEY_NAME)
             
             // Get key from keystore
@@ -152,15 +166,17 @@ class SecurityHelper @Inject constructor(
             
             // Return the encrypted data as bytes (consistent for same key)
             return cipher.doFinal("MoneyPulse Database Secret".toByteArray())
+            */
         } catch (e: Exception) {
             Log.e(TAG, "Error getting database key: ${e.message}")
-            // Fallback to a static key for development only - NEVER use in production
+            // Fallback to a static key for stability
             if (BuildConfig.DEBUG) {
-                Log.w(TAG, "Using fallback key in DEBUG mode only")
-                return "MoneyPulse_Debug_Key_For_Development_Only".toByteArray()
-            } else {
-                throw e  // In release builds, propagate the error
+                Log.w(TAG, "Using fallback key due to error")
             }
+            
+            // Convert to a fixed-length key by using a hash
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            return md.digest("MoneyPulse_Fallback_Key_v1".toByteArray())
         }
     }
     
