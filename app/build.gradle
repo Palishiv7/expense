@@ -30,8 +30,30 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // Disable debug logs in release builds
+            buildConfigField "boolean", "DEBUG_LOGGING", "false"
+            
+            // Additional security for release builds
+            debuggable false
+            jniDebuggable false
+            renderscriptDebuggable false
+            pseudoLocalesEnabled false
+            zipAlignEnabled true
+        }
+        
+        debug {
+            minifyEnabled false
+            debuggable true
+            
+            // Enable logging in debug builds
+            buildConfigField "boolean", "DEBUG_LOGGING", "true"
+            
+            // For security testing in debug builds
+            applicationIdSuffix ".debug"
         }
     }
+    
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -79,6 +101,9 @@ dependencies {
     // Encrypted SharedPreferences
     implementation "androidx.security:security-crypto:1.1.0-alpha06"
     
+    // Biometric authentication
+    implementation "androidx.biometric:biometric:1.2.0-alpha05"
+    
     // Hilt for dependency injection
     implementation "com.google.dagger:hilt-android:$hilt_version"
     kapt "com.google.dagger:hilt-compiler:$hilt_version"
@@ -94,6 +119,9 @@ dependencies {
     // Coroutines & Flow
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+    
+    // Security tools
+    implementation "org.bouncycastle:bcprov-jdk15on:1.70" // Cryptography provider
     
     // Testing
     testImplementation 'junit:junit:4.13.2'

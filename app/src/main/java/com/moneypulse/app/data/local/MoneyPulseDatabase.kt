@@ -8,12 +8,15 @@ import androidx.room.TypeConverters
 import com.moneypulse.app.data.local.dao.TransactionDao
 import com.moneypulse.app.data.local.entity.TransactionEntity
 import com.moneypulse.app.data.local.util.DateConverter
-import net.sqlcipher.database.SQLiteDatabase
+import com.moneypulse.app.util.SecurityHelper
+import dagger.hilt.android.qualifiers.ApplicationContext
 import net.sqlcipher.database.SupportFactory
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Room database for the MoneyPulse app
- * Uses SQLCipher for encryption
+ * Uses SQLCipher for encryption with keys from Android Keystore
  */
 @Database(
     entities = [TransactionEntity::class],
@@ -25,24 +28,26 @@ abstract class MoneyPulseDatabase : RoomDatabase() {
     
     abstract fun transactionDao(): TransactionDao
     
-    companion object {
-        private const val DATABASE_NAME = "moneypulse_db"
-        private const val PASSPHRASE = "moneypulse_secure_key" // In production, this should be securely generated and stored
+    @Singleton
+    class DatabaseProvider @Inject constructor(
+        @ApplicationContext private val context: Context,
+        private val securityHelper: SecurityHelper
+    ) {
         
         @Volatile
         private var INSTANCE: MoneyPulseDatabase? = null
         
-        fun getInstance(context: Context): MoneyPulseDatabase {
+        fun getDatabase(): MoneyPulseDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = createDatabase(context)
+                val instance = createDatabase()
                 INSTANCE = instance
                 instance
             }
         }
         
-        private fun createDatabase(context: Context): MoneyPulseDatabase {
-            // Set up encryption (SQLCipher)
-            val passphrase = SQLiteDatabase.getBytes(PASSPHRASE.toCharArray())
+        private fun createDatabase(): MoneyPulseDatabase {
+            // Use SecurityHelper to get secure encryption key
+            val passphrase = securityHelper.getDatabaseKey()
             val factory = SupportFactory(passphrase)
             
             return Room.databaseBuilder(
@@ -55,4 +60,8 @@ abstract class MoneyPulseDatabase : RoomDatabase() {
             .build()
         }
     }
-} 
+    
+    companion object {
+        private const val DATABASE_NAME = "moneypulse_db"
+    }
+}

@@ -9,6 +9,7 @@ import com.moneypulse.app.domain.model.TransactionSms
 import com.moneypulse.app.data.repository.TransactionRepository
 import com.moneypulse.app.util.NotificationHelper
 import com.moneypulse.app.util.PreferenceHelper
+import com.moneypulse.app.util.SecurityHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +19,7 @@ import javax.inject.Inject
 /**
  * BroadcastReceiver that listens for incoming SMS messages
  * and processes them to detect financial transactions.
+ * Enhanced with security features to protect sensitive data.
  */
 @AndroidEntryPoint
 class SmsReceiver : BroadcastReceiver() {
@@ -223,6 +225,9 @@ class SmsReceiver : BroadcastReceiver() {
     @Inject
     lateinit var preferenceHelper: PreferenceHelper
     
+    @Inject
+    lateinit var securityHelper: SecurityHelper
+    
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
@@ -232,24 +237,31 @@ class SmsReceiver : BroadcastReceiver() {
                     val sender = sms.displayOriginatingAddress?.trim() ?: ""
                     val body = sms.messageBody?.trim() ?: ""
                     
+                    // Sanitize input to prevent any injection attacks
+                    val sanitizedSender = securityHelper.sanitizeInput(sender)
+                    val sanitizedBody = securityHelper.sanitizeInput(body)
+                    
                     // Skip empty messages
-                    if (sender.isBlank() || body.isBlank()) {
+                    if (sanitizedSender.isBlank() || sanitizedBody.isBlank()) {
                         Log.d(TAG, "Skipping empty SMS")
                         captureLog("Skipping empty SMS")
                         continue
                     }
                     
-                    // Log the message for debugging
-                    Log.d(TAG, "Evaluating SMS from: $sender, body: ${body.take(50)}...")
-                    captureLog("Evaluating SMS from: $sender, body: ${body.take(50)}...")
+                    // Mask sensitive data in logs
+                    val maskedBody = securityHelper.maskSensitiveData(sanitizedBody)
+                    
+                    // Log the message for debugging with masked sensitive information
+                    Log.d(TAG, "Evaluating SMS from: $sanitizedSender, body: ${maskedBody.take(50)}...")
+                    captureLog("Evaluating SMS from: $sanitizedSender, body: ${maskedBody.take(50)}...")
                 
-                // Check if this is a transaction SMS
-                if (isTransactionSms(sender, body)) {
+                    // Check if this is a transaction SMS - use original sanitized values for processing
+                    if (isTransactionSms(sanitizedSender, sanitizedBody)) {
                         Log.d(TAG, "Transaction SMS detected!")
                         captureLog("Transaction SMS detected!")
                         
-                        // Parse transaction details
-                    val transaction = parseTransactionDetails(sender, body)
+                        // Parse transaction details - using sanitized values
+                        val transaction = parseTransactionSms(sanitizedSender, sanitizedBody)
                         
                         // Skip if we couldn't extract a valid amount
                         if (transaction.amount == 0.0) {
@@ -258,33 +270,34 @@ class SmsReceiver : BroadcastReceiver() {
                             continue
                         }
                         
-                        // Log the extracted details
-                        Log.d(TAG, "Extracted: ${transaction.merchantName}, Amount: ${transaction.amount}")
-                        captureLog("Extracted: ${transaction.merchantName}, Amount: ${transaction.amount}")
+                        // Log the extracted details - mask merchant name for privacy
+                        Log.d(TAG, "Extracted: ${transaction.merchantName}, Amount: [MASKED]")
+                        captureLog("Extracted: ${transaction.merchantName}, Amount: [MASKED]")
                     
-                    // Check if automatic transaction mode is enabled
-                    if (preferenceHelper.isAutoTransactionEnabled()) {
-                        // Automatically add the transaction to database
+                        // Check if automatic transaction mode is enabled
+                        if (preferenceHelper.isAutoTransactionEnabled()) {
+                            // Automatically add the transaction to database
                             Log.d(TAG, "Auto mode: Adding transaction automatically")
                             captureLog("Auto mode: Adding transaction automatically")
-                        CoroutineScope(Dispatchers.IO).launch {
-                            transactionRepository.processNewTransactionSms(transaction)
-                        }
-                    } else {
-                        // Show notification for manual review
+                            CoroutineScope(Dispatchers.IO).launch {
+                                transactionRepository.processNewTransactionSms(transaction)
+                            }
+                        } else {
+                            // Show notification for manual review
                             Log.d(TAG, "Manual mode: Showing notification for user review")
                             captureLog("Manual mode: Showing notification for user review")
-                        NotificationHelper.showTransactionNotification(context, transaction)
+                            NotificationHelper.showTransactionNotification(context, transaction)
                         }
                     } else {
                         // Log a message indicating this SMS was not detected as a transaction
                         Log.d(TAG, "Not a transaction SMS")
-                        captureLog("Not a transaction SMS: $sender - ${body.take(50)}")
+                        captureLog("Not a transaction SMS: $sanitizedSender - ${maskedBody.take(50)}")
                     }
                 } catch (e: Exception) {
                     // Catch and log any exceptions during SMS processing to avoid crashes
-                    Log.e(TAG, "Error processing SMS: ${e.message}", e)
-                    captureLog("Error processing SMS: ${e.message}")
+                    // Don't log the full exception which might contain sensitive data
+                    Log.e(TAG, "Error processing SMS: ${e.javaClass.simpleName}")
+                    captureLog("Error processing SMS: ${e.javaClass.simpleName}")
                 }
             }
         }
@@ -404,7 +417,7 @@ class SmsReceiver : BroadcastReceiver() {
      * Extracts transaction details from the SMS body
      * Enhanced with more robust amount detection patterns
      */
-    private fun parseTransactionDetails(sender: String, body: String): TransactionSms {
+    private fun parseTransactionSms(sender: String, body: String): TransactionSms {
         // Extract amount - improved with more comprehensive pattern matching
         // Handles various currency formats (₹, Rs., INR, USD, $) with proper grouping
         val primaryAmountRegex = Regex(

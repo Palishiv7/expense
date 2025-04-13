@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <!-- This file defines the data extraction rules for backups.
+         We're preventing all app-specific database and shared preferences 
+         from being included in backups to protect sensitive financial data. -->
+    <cloud-backup>
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="root" path="." />
+    </cloud-backup>
+    
+    <device-transfer>
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="root" path="." />
+    </device-transfer>
+</data-extraction-rules> 

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Enable TLS (including TLS 1.2) for all domains -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Example of certificate pinning for future API use -->
+    <!-- Uncomment and configure if/when the app connects to a backend -->
+    <!--
+    <domain-config>
+        <domain includeSubdomains="true">api.moneypulse.com</domain>
+        <pin-set>
+            <pin digest="SHA-256">kzPp9dS6Wd7+9tMbp+QwpMCs5uQj6xrIxd+Dvl1JDc8=</pin>
+            <pin digest="SHA-256">YLh1dUR9y6Kja30RrAn7JKnbQG/uEtLMkBgFF2Fuihg=</pin>
+        </pin-set>
+        <trustkit-config enforcePinning="true" />
+    </domain-config>
+    -->
+</network-security-config> 

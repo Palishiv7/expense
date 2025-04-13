@@ -9,6 +9,7 @@ import javax.inject.Singleton
 
 /**
  * Helper class for handling app preferences with encryption
+ * Enhanced with security-focused preferences
  */
 @Singleton
 class PreferenceHelper @Inject constructor(
@@ -26,6 +27,15 @@ class PreferenceHelper @Inject constructor(
         
         // Default income value
         const val DEFAULT_INCOME = 45000.0
+        
+        // Security preferences
+        private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
+        private const val KEY_SCREEN_CAPTURE_BLOCKED = "screen_capture_blocked"
+        private const val KEY_AUTO_LOCK_TIMEOUT = "auto_lock_timeout"
+        private const val KEY_SECURE_MODE = "secure_mode"
+        
+        // Default security settings
+        private const val DEFAULT_AUTO_LOCK_TIMEOUT = 5 // 5 minutes
     }
     
     // Create or retrieve the encrypted shared preferences
@@ -68,9 +78,7 @@ class PreferenceHelper @Inject constructor(
      * Set transaction processing mode
      */
     fun setTransactionMode(mode: String) {
-        if (mode == MODE_AUTOMATIC || mode == MODE_MANUAL) {
-            encryptedPrefs.edit().putString(KEY_TRANSACTION_MODE, mode).apply()
-        }
+        encryptedPrefs.edit().putString(KEY_TRANSACTION_MODE, mode).apply()
     }
     
     /**
@@ -92,5 +100,63 @@ class PreferenceHelper @Inject constructor(
      */
     fun setUserIncome(income: Double) {
         encryptedPrefs.edit().putFloat(KEY_USER_INCOME, income.toFloat()).apply()
+    }
+    
+    // --- SECURITY SETTINGS ---
+    
+    /**
+     * Check if biometric authentication is enabled
+     */
+    fun isBiometricEnabled(): Boolean {
+        return encryptedPrefs.getBoolean(KEY_BIOMETRIC_ENABLED, false)
+    }
+    
+    /**
+     * Enable or disable biometric authentication
+     */
+    fun setBiometricEnabled(enabled: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_BIOMETRIC_ENABLED, enabled).apply()
+    }
+    
+    /**
+     * Check if screen capture is blocked
+     */
+    fun isScreenCaptureBlocked(): Boolean {
+        return encryptedPrefs.getBoolean(KEY_SCREEN_CAPTURE_BLOCKED, true) // Blocked by default
+    }
+    
+    /**
+     * Enable or disable screen capture blocking
+     */
+    fun setScreenCaptureBlocked(blocked: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_SCREEN_CAPTURE_BLOCKED, blocked).apply()
+    }
+    
+    /**
+     * Get auto-lock timeout in minutes
+     */
+    fun getAutoLockTimeout(): Int {
+        return encryptedPrefs.getInt(KEY_AUTO_LOCK_TIMEOUT, DEFAULT_AUTO_LOCK_TIMEOUT)
+    }
+    
+    /**
+     * Set auto-lock timeout in minutes
+     */
+    fun setAutoLockTimeout(timeoutMinutes: Int) {
+        encryptedPrefs.edit().putInt(KEY_AUTO_LOCK_TIMEOUT, timeoutMinutes).apply()
+    }
+    
+    /**
+     * Check if secure mode is enabled (hides financial data when app is in background)
+     */
+    fun isSecureModeEnabled(): Boolean {
+        return encryptedPrefs.getBoolean(KEY_SECURE_MODE, true) // Enabled by default
+    }
+    
+    /**
+     * Enable or disable secure mode
+     */
+    fun setSecureModeEnabled(enabled: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_SECURE_MODE, enabled).apply()
     }
 } 

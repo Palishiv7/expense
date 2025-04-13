@@ -76,4 +76,45 @@
     <string name="debug_waiting">Waiting for SMS logs...</string>
     <string name="debug_section_title">SMS Transaction Debug</string>
     <string name="debug_logs_hint">Watch this screen while SMS messages arrive to diagnose detection issues</string>
+    
+    <!-- Security & Privacy -->
+    <string name="privacy_title">Privacy &amp; Security</string>
+    <string name="privacy_sms_explanation">We only read SMS from official banks to identify transactions. Messages are processed entirely on your device and never leave it.</string>
+    <string name="data_security_explanation">Your financial data is protected with AES-256 military-grade encryption. Even if your phone is stolen, your data remains secure.</string>
+    <string name="security_commitment">Your financial data is secured with AES-256 encryption and never leaves your device.</string>
+    <string name="data_collection_notice">This app does not collect or transmit any personal data. All information remains on your device.</string>
+    <string name="permissions_usage_policy">SMS permissions are used solely to identify bank transactions. We never collect, share, or transmit your message content.</string>
+    
+    <!-- Biometric Authentication -->
+    <string name="biometric_protection_title">Biometric Protection</string>
+    <string name="biometric_protection_summary">Use your fingerprint or face to secure the app</string>
+    <string name="biometric_prompt_title">Authenticate to Access MoneyPulse</string>
+    <string name="biometric_prompt_subtitle">Use your biometric credentials to continue</string>
+    <string name="biometric_prompt_cancel">Cancel</string>
+    <string name="biometric_setup_title">Set Up Biometric Protection</string>
+    <string name="biometric_setup_message">Add an extra layer of security by requiring fingerprint or face recognition</string>
+    <string name="biometric_setup_enable">Enable</string>
+    <string name="biometric_setup_skip">Skip for Now</string>
+    <string name="biometric_not_available">Biometric authentication is not available on this device</string>
+    <string name="biometric_auth_failed">Authentication failed. Please try again.</string>
+    <string name="biometric_auth_error">Authentication error: %1$s</string>
+    
+    <!-- Security Settings -->
+    <string name="security_settings_title">Security Settings</string>
+    <string name="auto_lock_title">Auto-Lock</string>
+    <string name="auto_lock_summary">Lock app after period of inactivity</string>
+    <string name="auto_lock_timeout">Lock timeout</string>
+    <string name="timeout_1_minute">1 minute</string>
+    <string name="timeout_5_minutes">5 minutes</string>
+    <string name="timeout_10_minutes">10 minutes</string>
+    <string name="timeout_30_minutes">30 minutes</string>
+    <string name="secure_mode_title">Secure Mode</string>
+    <string name="secure_mode_summary">Hide financial data when app is in background</string>
+    <string name="screen_capture_title">Block Screenshots</string>
+    <string name="screen_capture_summary">Prevent screen capture while using the app</string>
+    <string name="device_security_warning">Your device appears to be rooted or running custom firmware. This might compromise your financial data security.</string>
+    
+    <!-- Permission Rationales (Enhanced) -->
+    <string name="sms_permission_detail">We need SMS permission to automatically identify and categorize bank transaction messages. Your messages are processed entirely on-device, and the content is never transmitted or stored in plain text.</string>
+    <string name="notification_permission_detail">We use notifications to alert you about new transactions that require your review. You can choose automatic or manual review in settings.</string>
 </resources> 
