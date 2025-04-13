@@ -558,17 +558,19 @@ class SmsReceiver : BroadcastReceiver() {
         // Pattern 5: Find merchant names after payment keywords
         if (merchantName.isEmpty()) {
             val paymentKeywords = listOf("sent", "paid", "debited", "payment", "transfer", "spent")
-            for (keyword in paymentKeywords) {
+            val keywordLoop = paymentKeywords.any { keyword ->
                 if (lowerBody.contains(keyword)) {
                     // Look for capitalized words after the keyword
                     val afterKeyword = body.substring(lowerBody.indexOf(keyword) + keyword.length)
                     val capitalizedPattern = Regex("([A-Z][A-Za-z0-9\\s&'-]{2,})")
-                    capitalizedPattern.find(afterKeyword)?.let {
-                        merchantName = it.groupValues[1].trim()
+                    val match = capitalizedPattern.find(afterKeyword)
+                    if (match != null) {
+                        merchantName = match.groupValues[1].trim()
                         captureLog("Extracted capitalized word after '$keyword': $merchantName")
-                        break
+                        return@any true // Break the loop
                     }
                 }
+                false
             }
         }
         
