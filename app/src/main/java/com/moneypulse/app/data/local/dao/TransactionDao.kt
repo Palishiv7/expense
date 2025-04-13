@@ -46,4 +46,10 @@ interface TransactionDao {
     
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteTransaction(id: Long): Int
+    
+    @Query("SELECT * FROM transactions WHERE date >= :startTime ORDER BY date DESC")
+    suspend fun getRecentTransactionsByTimeWindow(startTime: Long): List<TransactionEntity>
+    
+    @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND ABS(amount - :amount) < 0.01 AND date >= :startTime")
+    suspend fun findSimilarTransactions(merchantName: String, amount: Double, startTime: Long): List<TransactionEntity>
 } 

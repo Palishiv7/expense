@@ -178,13 +178,13 @@ class SmsReceiver : BroadcastReceiver() {
                     
                     // Log the message for debugging (consider removing in production)
                     Log.d(TAG, "Evaluating SMS from: $sender, body: ${body.take(50)}...")
-                    
-                    // Check if this is a transaction SMS
-                    if (isTransactionSms(sender, body)) {
+                
+                // Check if this is a transaction SMS
+                if (isTransactionSms(sender, body)) {
                         Log.d(TAG, "Transaction SMS detected!")
                         
                         // Parse transaction details
-                        val transaction = parseTransactionDetails(sender, body)
+                    val transaction = parseTransactionDetails(sender, body)
                         
                         // Skip if we couldn't extract a valid amount
                         if (transaction.amount <= 0) {
@@ -194,18 +194,18 @@ class SmsReceiver : BroadcastReceiver() {
                         
                         // Log the extracted details
                         Log.d(TAG, "Extracted: ${transaction.merchantName}, Amount: ${transaction.amount}")
-                        
-                        // Check if automatic transaction mode is enabled
-                        if (preferenceHelper.isAutoTransactionEnabled()) {
-                            // Automatically add the transaction to database
+                    
+                    // Check if automatic transaction mode is enabled
+                    if (preferenceHelper.isAutoTransactionEnabled()) {
+                        // Automatically add the transaction to database
                             Log.d(TAG, "Auto mode: Adding transaction automatically")
-                            CoroutineScope(Dispatchers.IO).launch {
-                                transactionRepository.processNewTransactionSms(transaction)
-                            }
-                        } else {
-                            // Show notification for manual review
+                        CoroutineScope(Dispatchers.IO).launch {
+                            transactionRepository.processNewTransactionSms(transaction)
+                        }
+                    } else {
+                        // Show notification for manual review
                             Log.d(TAG, "Manual mode: Showing notification for user review")
-                            NotificationHelper.showTransactionNotification(context, transaction)
+                        NotificationHelper.showTransactionNotification(context, transaction)
                         }
                     } else {
                         // Log a message indicating this SMS was not detected as a transaction
@@ -245,7 +245,7 @@ class SmsReceiver : BroadcastReceiver() {
         
         // Check if this is a balance update or account info (which we want to ignore)
         val isBalanceUpdate = BALANCE_PATTERNS.any {
-            body.contains(it, ignoreCase = true)
+            body.contains(it, ignoreCase = true) 
         }
         
         // Check if this contains debit-related keywords

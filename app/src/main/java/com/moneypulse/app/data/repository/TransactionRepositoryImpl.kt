@@ -23,6 +23,12 @@ class TransactionRepositoryImpl @Inject constructor(
     override suspend fun processNewTransactionSms(transactionSms: TransactionSms) {
         Log.d(TAG, "Processing transaction: ${transactionSms.merchantName}, ₹${transactionSms.amount}")
         
+        // Check if this is a duplicate transaction before processing
+        if (isDuplicateTransaction(transactionSms)) {
+            Log.d(TAG, "Skipping duplicate transaction from: ${transactionSms.sender}")
+            return
+        }
+        
         // Convert TransactionSms to TransactionEntity
         val transaction = TransactionEntity(
             amount = transactionSms.amount,
@@ -38,6 +44,84 @@ class TransactionRepositoryImpl @Inject constructor(
         // Insert into database
         val id = transactionDao.insertTransaction(transaction)
         Log.d(TAG, "Transaction saved with ID: $id")
+    }
+    
+    /**
+     * Smart duplicate detection system to prevent counting the same transaction multiple times
+     * while still allowing legitimate repeated transactions
+     */
+    private suspend fun isDuplicateTransaction(newTransaction: TransactionSms): Boolean {
+        // Calculate a time threshold (2 minutes window for potential duplicates)
+        val timeThreshold = 2 * 60 * 1000 // 2 minutes in milliseconds
+        val recentTimeWindow = newTransaction.timestamp - timeThreshold
+        
+        // Get recent transactions from the database
+        val recentTransactions = transactionDao.getRecentTransactionsByTimeWindow(recentTimeWindow)
+        
+        // If no recent transactions, this can't be a duplicate
+        if (recentTransactions.isEmpty()) {
+            return false
+        }
+        
+        // Look for duplicates using multiple criteria
+        for (existingTransaction in recentTransactions) {
+            // 1. Check for exact SMS body match (definitely a duplicate)
+            if (existingTransaction.smsBody == newTransaction.body) {
+                Log.d(TAG, "Duplicate detected: Exact SMS body match")
+                return true
+            }
+            
+            // 2. Check for transaction reference numbers in SMS
+            val newRef = extractTransactionReference(newTransaction.body)
+            val existingRef = extractTransactionReference(existingTransaction.smsBody ?: "")
+            if (newRef.isNotEmpty() && existingRef.isNotEmpty() && newRef == existingRef) {
+                Log.d(TAG, "Duplicate detected: Same transaction reference number: $newRef")
+                return true
+            }
+            
+            // 3. Check for similar attributes within a very short time window (30 seconds)
+            val isVeryRecent = newTransaction.timestamp - existingTransaction.date.time < 30 * 1000
+            val isSameAmount = Math.abs(existingTransaction.amount - newTransaction.amount) < 0.01
+            val isSameMerchant = existingTransaction.merchantName.equals(
+                newTransaction.merchantName, 
+                ignoreCase = true
+            )
+            
+            if (isVeryRecent && isSameAmount && isSameMerchant) {
+                Log.d(TAG, "Duplicate detected: Same merchant, amount and very recent (within 30s)")
+                return true
+            }
+        }
+        
+        // Not a duplicate
+        return false
+    }
+    
+    /**
+     * Extracts transaction reference/ID from SMS text if available
+     */
+    private fun extractTransactionReference(smsBody: String): String {
+        // Try to extract transaction reference/ID using regex patterns
+        val refPatterns = listOf(
+            // Common reference formats in Indian bank SMS
+            Regex("(?:ref|reference|txn|transaction|txnid|upi|rrn)(?:\\s+|\\s*:?\\s*)([A-Za-z0-9]+)", RegexOption.IGNORE_CASE),
+            Regex("(?:id|number|no|trxn)(?:\\s+|\\s*:?\\s*)([A-Za-z0-9]+)", RegexOption.IGNORE_CASE),
+            // UPI specific format
+            Regex("(?:upi ref no|upi ref|upireference)\\s*(?::|is)?\\s*([A-Za-z0-9]+)", RegexOption.IGNORE_CASE)
+        )
+        
+        for (pattern in refPatterns) {
+            val match = pattern.find(smsBody)
+            if (match != null && match.groupValues.size > 1) {
+                val ref = match.groupValues[1].trim()
+                // Ensure reference is a reasonable length and not a date
+                if (ref.length >= 6 && !ref.matches(Regex("\\d{2}[/\\-]\\d{2}[/\\-]\\d{2,4}"))) {
+                    return ref
+                }
+            }
+        }
+        
+        return ""
     }
     
     override fun getMonthlySpending(): Flow<Double> {
