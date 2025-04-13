@@ -28,7 +28,9 @@ class SmsReceiver : BroadcastReceiver() {
         // Comprehensive list of official bank sender IDs - focus only on official banks
         private val BANK_SENDERS = listOf(
             // Major Private Banks
-            "HDFCBK", "HDFC", "HSBCBK", "ICICIB", "ICICI", "AXISBK", "AXIS", "KOTAKB", "KOTAK", 
+            "HDFCBK", "HDFC", "HDFCBN", "HDFCC", "HDFCNB", "HDFCSN", "HDFCSC", "iHDFC",
+            "HSBCBK", "ICICIB", "ICICI", "AXISBK", "AXIS", "AXISBK", "AXISC", "KOTAKB", "KOTAK", 
+            "KMBL", "KMBLCC", "KMBLAC", "KTKBNK", "KOTAKM", "KMOBILE", "KMBSMS", "KMBINB", 
             "YESBNK", "YESBK", "IDBI", "INDUSB", "RBLBNK", "RBL", "DBSBNK", "DBS", "FEDBNK", 
             "FB", "CITI", "SCBNK", "SCBANK", "KVBANK", "KVBBNK", "TMBANK", "TMBL", "CNRBNK",
             
@@ -63,12 +65,31 @@ class SmsReceiver : BroadcastReceiver() {
             "WISE", "LYDIA", "TWINT"
         )
         
-        // Common patterns to detect debit transactions
+        // Comprehensive patterns to detect debit transactions - expanded based on real messages
         private val DEBIT_PATTERNS = listOf(
-            "debited", "purchased", "spent", "payment", "paid", "withdraw",
-            "withdrawn", "debit", "sent", "transaction", "txn", "using card",
-            "deducted", "charged", "bill amount", "shopping", "purchase", "bill",
-            "order", "subscription", "membership", "fee", "charge", "dr", "transfer to"
+            // Direct debit terms
+            "debited", "debit", "dr", "deducted", "withdrawn", "withdraw",
+            
+            // Transfer terms
+            "sent", "paid", "payment", "transfer to", "transferred", "sent to", "sent from",
+            
+            // Purchase terms
+            "purchased", "spent", "using card", "purchase", "shopping", "spent",
+            
+            // Bill/Fee terms
+            "bill amount", "bill", "charge", "charged", "fee",
+            
+            // Order terms
+            "order", "subscription", "membership",
+            
+            // Transaction terms
+            "transaction", "txn", "thru upi", "via upi", "upi ref", "through", "to vpa",
+            
+            // From account indicators
+            "from a/c", "from ac", "from acct", "from bank a/c", "from account", "from sav ac",
+            
+            // General terms that appear in transaction SMS
+            "ref no", "avl bal", "available balance", "bal", "balance", "info"
         )
         
         // Enhanced OTP patterns to filter out non-transaction messages
@@ -238,6 +259,7 @@ class SmsReceiver : BroadcastReceiver() {
         
         // Only proceed if the message is from an official bank
         if (!isBankSender) {
+            Log.d(TAG, "SMS rejected: Not from a known bank sender - $sender")
             return false
         }
         
@@ -246,9 +268,19 @@ class SmsReceiver : BroadcastReceiver() {
             body.contains(it, ignoreCase = true) 
         }
         
+        if (isOtpMessage) {
+            Log.d(TAG, "SMS rejected: Appears to be an OTP message")
+            return false
+        }
+        
         // Check if this is a promotional message (which we want to ignore)
         val isPromotionalMessage = PROMOTIONAL_PATTERNS.any {
             body.contains(it, ignoreCase = true)
+        }
+        
+        if (isPromotionalMessage) {
+            Log.d(TAG, "SMS rejected: Appears to be a promotional message")
+            return false
         }
         
         // Check if this is a balance update or account info (which we want to ignore)
@@ -256,23 +288,45 @@ class SmsReceiver : BroadcastReceiver() {
             body.contains(it, ignoreCase = true)
         }
         
+        if (isBalanceUpdate && !body.contains("debited", ignoreCase = true) && !body.contains("sent", ignoreCase = true)) {
+            Log.d(TAG, "SMS rejected: Appears to be just a balance update")
+            return false
+        }
+        
         // Check if this contains debit-related keywords
         val isDebitMessage = DEBIT_PATTERNS.any { 
             body.contains(it, ignoreCase = true) 
         }
         
-        // Additional criteria: Check for amount patterns
-        val containsAmountPattern = body.contains(Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,]+"))
+        if (!isDebitMessage) {
+            Log.d(TAG, "SMS rejected: No debit-related keywords found")
+            return false
+        }
         
-        // For production: Only consider messages from official banks
-        // that contain transaction keywords and don't appear to be OTPs,
-        // promotional messages, or balance updates
-        return isBankSender && 
-               isDebitMessage && 
-               !isOtpMessage && 
-               !isPromotionalMessage && 
-               !isBalanceUpdate &&
-               containsAmountPattern
+        // Additional criteria: Check for amount patterns with enhanced regex
+        val amountPatterns = listOf(
+            // Common Indian formats
+            Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,]+(?:\\.\\d{1,2})?"),
+            // Amounts without currency symbol
+            Regex("(?<=\\s|^)\\d{1,3}(?:,\\d{3})*(?:\\.\\d{1,2})?(?=\\s|$)"),
+            // "Sent X.XX" pattern
+            Regex("(?:sent|paid|debited|deducted|withdrew)\\s+(?:Rs\\.?|INR|₹)?\\s*\\d+(?:\\.\\d{1,2})?"),
+            // Amount followed by "from" or "to"
+            Regex("\\d+(?:\\.\\d{1,2})?\\s+(?:from|to|by)")
+        )
+        
+        val containsAmountPattern = amountPatterns.any { pattern ->
+            pattern.find(body) != null
+        }
+        
+        if (!containsAmountPattern) {
+            Log.d(TAG, "SMS rejected: No amount pattern found")
+            return false
+        }
+        
+        // Message passed all filters - it's a transaction message
+        Log.d(TAG, "SMS accepted as transaction: $sender - ${body.take(50)}...")
+        return true
     }
     
     /**
