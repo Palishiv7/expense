@@ -5,6 +5,7 @@ import com.moneypulse.app.data.local.MoneyPulseDatabase
 import com.moneypulse.app.data.local.dao.TransactionDao
 import com.moneypulse.app.data.repository.TransactionRepository
 import com.moneypulse.app.data.repository.TransactionRepositoryImpl
+import com.moneypulse.app.util.SecurityHelper
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -27,8 +28,8 @@ abstract class AppModule {
         
         @Provides
         @Singleton
-        fun provideDatabase(@ApplicationContext context: Context): MoneyPulseDatabase {
-            return MoneyPulseDatabase.getInstance(context)
+        fun provideDatabase(databaseProvider: MoneyPulseDatabase.DatabaseProvider): MoneyPulseDatabase {
+            return databaseProvider.getDatabase()
         }
         
         @Provides
