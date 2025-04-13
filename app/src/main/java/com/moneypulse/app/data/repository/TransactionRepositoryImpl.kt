@@ -149,20 +149,17 @@ class TransactionRepositoryImpl @Inject constructor(
         calendar.set(Calendar.MILLISECOND, 999)
         val endDate = calendar.time
         
-        // Get both expenses and income to calculate net spending
+        // Get transactions for this month but only return total expenses (not including income)
         return transactionDao.getAllTransactionsByDateRange(startDate, endDate)
             .map { transactions ->
-                var netAmount = 0.0
+                var totalExpenses = 0.0
                 transactions.forEach { transaction ->
-                    val amount = transaction.amount
-                    // Expenses are negative, income is positive
+                    // Only count EXPENSE transactions toward the monthly spending total
                     if (transaction.type == TransactionType.EXPENSE) {
-                        netAmount -= amount
-                    } else {
-                        netAmount += amount
+                        totalExpenses += transaction.amount
                     }
                 }
-                netAmount
+                totalExpenses
             }
     }
     

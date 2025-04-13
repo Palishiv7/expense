@@ -104,13 +104,13 @@ fun SpendingSummaryCard(monthlySpending: Double, monthlyIncome: Double) {
     val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     formatter.maximumFractionDigits = 0
     
-    // Format the spending amount with negative sign for display
-    val spentAmount = formatter.format(-Math.abs(monthlySpending))
+    // Format the spending amount (monthlySpending is already a positive value)
+    val spentAmount = formatter.format(-monthlySpending)
     
     val incomeAmount = formatter.format(monthlyIncome)
     
-    // Calculate balance correctly: Income minus Spending (absolute value)
-    val balance = monthlyIncome - Math.abs(monthlySpending)
+    // Calculate balance correctly: Income minus Spending
+    val balance = monthlyIncome - monthlySpending
     val balanceAmount = formatter.format(balance)
     
     Card(
