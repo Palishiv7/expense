@@ -527,39 +527,79 @@ class SmsReceiver : BroadcastReceiver() {
         // If known merchant not found, try different extraction patterns
         if (merchantName.isEmpty()) {
             
-            // --------- PRIORITY 1: "TO" PATTERNS ---------
+            // --------- PRIORITY 0: BANK-SPECIFIC PATTERNS ---------
             
-            // Collection of recipient patterns to handle various formats
-            val recipientPatterns = listOf(
-                // To NAME (with various boundaries)
-                Regex("(?:to|towards|credited to|sent to|paid to|transferred to)\\s+([A-Za-z0-9@_.\\s&'-]+)(?:\\s*(?:\\.|,|;|$|on|at|info|with|mob|ref|upi|id))", RegexOption.IGNORE_CASE),
+            // HDFC Bank common format: "To NAME" on a separate line followed by "On DATE"
+            if (body.contains("HDFC Bank", ignoreCase = true) || 
+                body.contains("HDFCBANK", ignoreCase = true)) {
                 
-                // Sent/paid/transferred - to/from - NAME pattern
-                Regex("(?:sent|paid|transferred|debited|credited)\\s+(?:rs\\.?|inr|₹)?\\s*[\\d,.]+\\s+(?:to|from)\\s+([A-Za-z0-9@_.\\s&'-]+)(?:\\s|\\.|,|;|$)", RegexOption.IGNORE_CASE),
-                
-                // To NAME on a new line or followed by date pattern (common format across multiple banks)
-                Regex("To\\s+([A-Za-z0-9@_.\\s&'-]+)(?:\\s*\n|\\s+On|\\s*$)", RegexOption.IGNORE_CASE),
-                
-                // Beneficiary: NAME pattern
-                Regex("(?:benef(?:iciary)?|payee|recipient|account holder)\\s*(?::|is|name)?\\s*([A-Za-z0-9@_.\\s&'-]+)(?:\\s|\\.|,|;|$)", RegexOption.IGNORE_CASE),
-                
-                // VPA pattern (used by multiple banks)
-                Regex("(?:vpa|upi id|upi|virtual payment address)\\s*[:is]*\\s*([A-Za-z0-9@_.\\s&'-]+)(?:\\s|\\.|,|;|$)", RegexOption.IGNORE_CASE),
-                
-                // Info: transfer to NAME format
-                Regex("(?:info|information|details)\\s*:?\\s*(?:transfer|trf|payment|sent|paid)\\s+(?:to|towards)\\s+([A-Za-z0-9@_.\\s&'-]+)", RegexOption.IGNORE_CASE)
-            )
-            
-            // Try all recipient patterns
-            for (pattern in recipientPatterns) {
-                pattern.find(body)?.let {
+                val hdfcPattern = Regex("To\\s+([A-Za-z0-9@_.\\s&'-]+)\\s*\\n+\\s*On", RegexOption.IGNORE_CASE)
+                hdfcPattern.find(body)?.let {
                     merchantName = it.groupValues[1].trim()
-                    captureLog("Extracted using recipient pattern: $merchantName")
-                    return@let
+                    captureLog("Extracted using HDFC format pattern: $merchantName")
                 }
             }
             
-            // Pattern 2: "at [merchant]" for card/POS transactions
+            // SBI Bank common format with beneficiary
+            if (merchantName.isEmpty() && 
+                body.contains("SBI", ignoreCase = true)) {
+                
+                val sbiPattern = Regex("(?:paid|sent) to\\s+([A-Za-z0-9@_.\\s&'-]+)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
+                sbiPattern.find(body)?.let {
+                    merchantName = it.groupValues[1].trim()
+                    captureLog("Extracted using SBI format pattern: $merchantName")
+                }
+            }
+            
+            // ICICI Bank common format
+            if (merchantName.isEmpty() && 
+                body.contains("ICICI", ignoreCase = true)) {
+                
+                val iciciPattern = Regex("transferred to\\s+([A-Za-z0-9@_.\\s&'-]+)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
+                iciciPattern.find(body)?.let {
+                    merchantName = it.groupValues[1].trim()
+                    captureLog("Extracted using ICICI format pattern: $merchantName")
+                }
+            }
+            
+            // --------- PRIORITY 1: GENERIC "TO" PATTERNS ---------
+            
+            // Only proceed with generic patterns if bank-specific patterns didn't find anything
+            if (merchantName.isEmpty()) {
+                // Collection of recipient patterns to handle various formats
+                val recipientPatterns = listOf(
+                    // To NAME (with various boundaries) - with stricter boundaries to avoid footer text
+                    Regex("(?:to|towards|credited to|sent to|paid to|transferred to)\\s+([A-Za-z0-9@_.\\s&'-]+?)(?:\\s+(?:on|dt|ref|upi|not|bal|thru|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", RegexOption.IGNORE_CASE),
+                    
+                    // Sent/paid/transferred - to/from - NAME pattern
+                    Regex("(?:sent|paid|transferred|debited|credited)\\s+(?:rs\\.?|inr|₹)?\\s*[\\d,.]+\\s+(?:to|from)\\s+([A-Za-z0-9@_.\\s&'-]+?)(?:\\s+(?:on|dt|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", RegexOption.IGNORE_CASE),
+                    
+                    // To NAME on a new line or followed by date pattern (common format across multiple banks)
+                    Regex("To\\s+([A-Za-z0-9@_.\\s&'-]+?)(?:\\s*\\n|\\s+On|\\s*$)", RegexOption.IGNORE_CASE),
+                    
+                    // Beneficiary: NAME pattern
+                    Regex("(?:benef(?:iciary)?|payee|recipient|account holder)\\s*(?::|is|name)?\\s*([A-Za-z0-9@_.\\s&'-]+?)(?:\\s+(?:on|dt|upi|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", RegexOption.IGNORE_CASE),
+                    
+                    // VPA pattern (used by multiple banks)
+                    Regex("(?:vpa|upi id|upi|virtual payment address)\\s*[:is]*\\s*([A-Za-z0-9@_.\\s&'-]+?)(?:\\s+(?:on|dt|upi|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", RegexOption.IGNORE_CASE),
+                    
+                    // Info: transfer to NAME format
+                    Regex("(?:info|information|details)\\s*:?\\s*(?:transfer|trf|payment|sent|paid)\\s+(?:to|towards)\\s+([A-Za-z0-9@_.\\s&'-]+?)(?:\\s+(?:on|dt|upi|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", RegexOption.IGNORE_CASE)
+                )
+                
+                // Try all recipient patterns
+                for (pattern in recipientPatterns) {
+                    pattern.find(body)?.let {
+                        merchantName = it.groupValues[1].trim()
+                        captureLog("Extracted using recipient pattern: $merchantName")
+                        return@let
+                    }
+                }
+            }
+            
+            // --------- PRIORITY 2: "AT" PATTERNS ---------
+            
+            // Pattern 1: "at [merchant]" for card/POS transactions
             if (merchantName.isEmpty() && (lowerBody.contains("card") || lowerBody.contains("pos") || lowerBody.contains("purchase"))) {
                 val atPattern = Regex("at\\s+([A-Za-z0-9\\s&'-]+)(?:\\s+(?:on|dt|\\.|$))", RegexOption.IGNORE_CASE)
                 atPattern.find(body)?.let {
@@ -568,7 +608,7 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             }
             
-            // Pattern 3: "for [service/merchant]" for bill payments
+            // Pattern 2: "for [service/merchant]" for bill payments
             if (merchantName.isEmpty() && (lowerBody.contains("bill") || lowerBody.contains("payment"))) {
                 val forPattern = Regex("for\\s+([A-Za-z0-9\\s&'-]+)(?:\\s+(?:on|dt|\\.|$))", RegexOption.IGNORE_CASE)
                 forPattern.find(body)?.let {
@@ -577,9 +617,9 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             }
             
-            // --------- PRIORITY 4: UPI ID EXTRACTION ---------
+            // --------- PRIORITY 3: UPI ID EXTRACTION ---------
             
-            // Pattern 4: UPI ID extraction (username@provider)
+            // Pattern 3: UPI ID extraction (username@provider)
             if (merchantName.isEmpty()) {
                 val upiPattern = Regex("to\\s+([a-zA-Z0-9_.]+@[a-zA-Z0-9_.]+)", RegexOption.IGNORE_CASE)
                 upiPattern.find(body)?.let {
@@ -597,9 +637,9 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             }
             
-            // --------- PRIORITY 5: TRANSACTION TYPE PATTERNS ---------
+            // --------- PRIORITY 4: TRANSACTION TYPE PATTERNS ---------
             
-            // Pattern 5: Find merchant names after payment keywords
+            // Pattern 4: Find merchant names after payment keywords
             if (merchantName.isEmpty()) {
                 val paymentKeywords = listOf("sent", "paid", "debited", "payment", "transfer", "spent")
                 val keywordLoop = paymentKeywords.any { keyword ->
@@ -618,9 +658,9 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             }
             
-            // --------- PRIORITY 6: SPECIAL TRANSACTION FORMATS ---------
+            // --------- PRIORITY 5: SPECIAL TRANSACTION FORMATS ---------
             
-            // Pattern 6: Extract from "thru UPI:" pattern (common in some banks)
+            // Pattern 5: Extract from "thru UPI:" pattern (common in some banks)
             if (merchantName.isEmpty() && lowerBody.contains("thru upi:")) {
                 // Check if there's a name before "thru UPI:"
                 val beforeUpi = body.substring(0, lowerBody.indexOf("thru upi:"))
@@ -633,7 +673,7 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             }
             
-            // --------- PRIORITY 7: FALLBACK STRATEGIES ---------
+            // --------- PRIORITY 6: FALLBACK STRATEGIES ---------
             
             // Fallback 1: Reference numbers if they look meaningful
             if (merchantName.isEmpty() && lowerBody.contains("upi:")) {
