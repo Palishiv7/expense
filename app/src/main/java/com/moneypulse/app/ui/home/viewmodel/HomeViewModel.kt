@@ -1,5 +1,6 @@
 package com.moneypulse.app.ui.home.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moneypulse.app.data.repository.TransactionRepository
@@ -79,15 +80,26 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             // Get income transactions for the current month
             transactionRepository.getMonthlyIncomeTransactions().collectLatest { incomeTransactions ->
+                // Log the income transactions we received
+                Log.d("HomeViewModel", "Received ${incomeTransactions.size} income transactions")
+                incomeTransactions.forEach { transaction ->
+                    Log.d("HomeViewModel", "Income transaction: ${transaction.merchantName}, amount: ${transaction.amount}")
+                }
+                
                 // Calculate total from transactions and add to base income
                 var totalIncome = preferenceHelper.getUserIncome()
+                Log.d("HomeViewModel", "Base income from preferences: $totalIncome")
                 
                 // Add up all income transactions for the month
+                var transactionsTotal = 0.0
                 incomeTransactions.forEach { transaction ->
                     if (transaction.amount > 0) {
-                        totalIncome += transaction.amount
+                        transactionsTotal += transaction.amount
                     }
                 }
+                
+                totalIncome += transactionsTotal
+                Log.d("HomeViewModel", "Added $transactionsTotal from transactions, new total: $totalIncome")
                 
                 // Update the income value
                 _monthlyIncome.value = totalIncome

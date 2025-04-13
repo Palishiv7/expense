@@ -33,8 +33,11 @@ class TransactionRepositoryImpl @Inject constructor(
         val transactionType = if (transactionSms.amount < 0) {
             TransactionType.EXPENSE
         } else {
+            // Income transaction
             TransactionType.INCOME
         }
+        
+        Log.d(TAG, "Transaction type: $transactionType based on amount: ${transactionSms.amount}")
         
         // Use absolute amount value for storage
         val absoluteAmount = Math.abs(transactionSms.amount)
@@ -53,7 +56,7 @@ class TransactionRepositoryImpl @Inject constructor(
         
         // Insert into database
         val id = transactionDao.insertTransaction(transaction)
-        Log.d(TAG, "Transaction saved with ID: $id")
+        Log.d(TAG, "Transaction saved with ID: $id, type: ${transaction.type}, amount: ${transaction.amount}")
     }
     
     /**
@@ -183,9 +186,16 @@ class TransactionRepositoryImpl @Inject constructor(
         calendar.set(Calendar.MILLISECOND, 999)
         val endDate = calendar.time
         
+        Log.d(TAG, "Fetching income transactions from $startDate to $endDate")
+        
         // Get all income transactions for the month
         return transactionDao.getTransactionsByTypeAndDateRange(TransactionType.INCOME, startDate, endDate)
             .map { entities ->
+                Log.d(TAG, "Found ${entities.size} income transactions in database")
+                entities.forEach { entity ->
+                    Log.d(TAG, "Income entity: ${entity.merchantName}, amount: ${entity.amount}, type: ${entity.type}")
+                }
+                
                 entities.map { entity ->
                     TransactionSms(
                         sender = entity.smsSender ?: "Manual Entry",

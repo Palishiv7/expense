@@ -1,5 +1,6 @@
 package com.moneypulse.app.ui.home
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,6 +111,7 @@ fun SpendingSummaryCard(monthlySpending: Double, monthlyIncome: Double) {
     val incomeAmount = formatter.format(monthlyIncome)
     
     // Calculate balance correctly: Income minus Spending
+    Log.d("HomeScreen", "Calculating balance: income($monthlyIncome) - spending($monthlySpending) = ${monthlyIncome - monthlySpending}")
     val balance = monthlyIncome - monthlySpending
     val balanceAmount = formatter.format(balance)
     
