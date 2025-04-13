@@ -25,23 +25,29 @@ class SmsReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "SmsReceiver"
         
-        // Bank sender patterns to identify transaction messages - expanded to include more Indian and international banks
+        // Comprehensive list of official bank sender IDs - focus only on official banks
         private val BANK_SENDERS = listOf(
-            // Major Indian Banks
-            "HDFCBK", "HDFC", "SBIINB", "ICICIB", "AXISBK", "KOTAKB", "PNBSMS", "SCISMS", 
-            "BOIIND", "INDBNK", "CANBNK", "CENTBK", "UCOBNK", "UNIONB", "SYNBNK", "IDBI", 
-            "BOBSMS", "YESBNK", "IDBIBK", "IDFCFB", "IDFCBK", "HSBCIN", "CITI", "RBLBNK", 
+            // Major Private Banks
+            "HDFCBK", "HDFC", "HSBCBK", "ICICIB", "ICICI", "AXISBK", "AXIS", "KOTAKB", "KOTAK", 
+            "YESBNK", "YESBK", "IDBI", "INDUSB", "RBLBNK", "RBL", "DBSBNK", "DBS", "FEDBNK", 
+            "FB", "CITI", "SCBNK", "SCBANK", "KVBANK", "KVBBNK", "TMBANK", "TMBL", "CNRBNK",
             
-            // Additional Indian Banks
-            "ANDBNK", "AUBANK", "BNDHAN", "COSBNK", "CSBKBN", "DBSBNK", "DEUTBK", "DLXBNK", 
-            "ESFBNK", "FEDRAL", "FINCAR", "INDUSB", "JKBNK", "KTKBNK", "KVBANK", "LVBSMS", 
-            "MAHBNK", "PSBNK", "SVCBNK", "TMBANK", "VJYBNK", "DNSBNK", "BARBNK", "BARAOD",
+            // Major Public Sector Banks
+            "SBIMSG", "SBIINB", "SBI", "BOIIND", "BOI", "BARODM", "BOBIBN", "BOB", "PNBSMS", 
+            "PNB", "CNRBNK", "CANBNK", "CBI", "CBSBNK", "UNIONB", "UBI", "IOBINB", "IOB", 
+            "SYNBNK", "SYNDBNK", "CORPBNK", "ANDBKK", "ALLBNK", "PSBANK", "PSB", "IDBIBNK", 
             
-            // International Banks
-            "BARAUK", "CHEQBK", "HSBC", "LLOYDS", "NATWS", "RBYBNK", "SANTUK", "BAMLUK", 
-            "JPMORG", "AMEX", "WELLS", "CAPITA", "CHASUS", "CITI", "DISCUS", "BOFA", 
-            "NFCU", "PNCBNK", "USBANK", "BARCUK", "DEUTSCHB", "ANZBNK", "Scotia", "MUFG", 
-            "RBCBNK", "UBSBNK", "COMMBK", "OCBCBK", "DBSSG", "UOBSG"
+            // Small Finance & Payment Banks
+            "AUSFNB", "EQUBNK", "ESFBNK", "JSFBNK", "UCOBNK", "UCO", "UJVNFD", "PMCBNK", 
+            "ABBANK", "AIRBNK", "JIOBNK", "FINOBNK", "NPSTPB", "NSDLPB",
+            
+            // Regional Rural Banks
+            "BGGBBN", "COSBNK", "DCBBNK", "HARYBNK", "KARUBNK", "KJSBNK", "ORICOB", "SAPBNK",
+            
+            // Common Alert Identifiers
+            "ALERTSVR", "ALERT", "BANKALRT", "BANKSMS", "ACTALRT", "TXNALRT", "ATMALERT", 
+            "SMSBKNG", "ACCTID", "TRNSMS", "BANKUPD", "NETBNK", "USSDBNK", "IMPSALRT", 
+            "AUTPAY", "CARDTRN", "DEBTALRT", "ALRTBK", "BOBTXN", "IMDBNK"
         )
         
         // UPI apps and payment services - expanded to include more services
@@ -62,7 +68,7 @@ class SmsReceiver : BroadcastReceiver() {
             "debited", "purchased", "spent", "payment", "paid", "withdraw",
             "withdrawn", "debit", "sent", "transaction", "txn", "using card",
             "deducted", "charged", "bill amount", "shopping", "purchase", "bill",
-            "order", "subscription", "membership", "fee", "charge"
+            "order", "subscription", "membership", "fee", "charge", "dr", "transfer to"
         )
         
         // Enhanced OTP patterns to filter out non-transaction messages
@@ -222,15 +228,17 @@ class SmsReceiver : BroadcastReceiver() {
     /**
      * Determines if an SMS is a transaction message by checking sender and body patterns
      * Enhanced with multiple filter layers for improved accuracy
+     * Only considers official bank messages as the source of truth
      */
     private fun isTransactionSms(sender: String, body: String): Boolean {
-        // Check if sender is a bank or UPI service
+        // Check if sender is an official bank 
         val isBankSender = BANK_SENDERS.any { 
             sender.contains(it, ignoreCase = true) 
         }
         
-        val isUpiSender = UPI_SENDERS.any { 
-            sender.contains(it, ignoreCase = true) 
+        // Only proceed if the message is from an official bank
+        if (!isBankSender) {
+            return false
         }
         
         // Check if this is likely an OTP message (which we want to ignore)
@@ -245,7 +253,7 @@ class SmsReceiver : BroadcastReceiver() {
         
         // Check if this is a balance update or account info (which we want to ignore)
         val isBalanceUpdate = BALANCE_PATTERNS.any {
-            body.contains(it, ignoreCase = true) 
+            body.contains(it, ignoreCase = true)
         }
         
         // Check if this contains debit-related keywords
@@ -256,10 +264,10 @@ class SmsReceiver : BroadcastReceiver() {
         // Additional criteria: Check for amount patterns
         val containsAmountPattern = body.contains(Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,]+"))
         
-        // For production: Only consider messages from known financial senders
+        // For production: Only consider messages from official banks
         // that contain transaction keywords and don't appear to be OTPs,
         // promotional messages, or balance updates
-        return (isBankSender || isUpiSender) && 
+        return isBankSender && 
                isDebitMessage && 
                !isOtpMessage && 
                !isPromotionalMessage && 
