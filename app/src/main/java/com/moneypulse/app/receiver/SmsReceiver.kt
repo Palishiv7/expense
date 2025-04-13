@@ -64,6 +64,11 @@ class SmsReceiver : BroadcastReceiver() {
             "YESBNK", "YESBK", "IDBI", "INDUSB", "RBLBNK", "RBL", "DBSBNK", "DBS", "FEDBNK", 
             "FB", "CITI", "SCBNK", "SCBANK", "KVBANK", "KVBBNK", "TMBANK", "TMBL", "CNRBNK",
             
+            // Additional Kotak Bank sender IDs
+            "KOTAKB", "KOTAK", "KMBL", "KMBKIN", "KOTAKMB", "KBLBNK", "KBINFO", "KTKUPI",
+            "KOTUPI", "KTKSMS", "KTSMS", "KBSMS", "KMSMS", "KMBPAY", "KOTKPAY", "KMBLUPI",
+            "KVBSMS", "SMSBKS", "KMB", "KBANKS", "KMBATM", "KBNK", "KBANK", "KTKCTSP",
+            
             // Major Public Sector Banks
             "SBIMSG", "SBIINB", "SBI", "BOIIND", "BOI", "BARODM", "BOBIBN", "BOB", "PNBSMS", 
             "PNB", "CNRBNK", "CANBNK", "CBI", "CBSBNK", "UNIONB", "UBI", "IOBINB", "IOB", 
@@ -291,6 +296,9 @@ class SmsReceiver : BroadcastReceiver() {
      * Only considers official bank messages as the source of truth
      */
     private fun isTransactionSms(sender: String, body: String): Boolean {
+        // Log full sender and message for debugging
+        captureLog("Full message analysis - Sender: '$sender', Body: '$body'")
+        
         // Check if sender is an official bank 
         val isBankSender = BANK_SENDERS.any { 
             sender.contains(it, ignoreCase = true) 
@@ -391,14 +399,8 @@ class SmsReceiver : BroadcastReceiver() {
             "(?:amount|amt|charge|bill|fee)\\s+(?:of\\s+)?(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)|" +  // "amount of" formats
             "(?:USD|\\$)\\s*([\\d,.]+)\\s*(?:\\((?:Rs\\.?|INR|₹)\\s*([\\d,]+\\.?\\d*)\\))?|" +  // USD with possible INR conversion
             "(?:spent|paid|send|sent|paying|received|credited|debited)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)|" +  // Action + amount
-            "(?:for|of|with|worth)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)"  // Preposition + amount
-        )
-        
-        // Secondary amount regex for simpler number formats
-        val secondaryAmountRegex = Regex(
-            "(?<=\\s|^)(?:Rs\\.?|INR|₹)?\\s*(\\d[\\d,]+\\.?\\d*)(?=\\s|$)|" +  // Numbers that look like amounts
-            "(?<=\\s|^)(\\d+\\.\\d{2})(?=\\s|$)|" +  // Numbers with exactly 2 decimal places
-            "(?:Rs|INR|₹)?\\s*([\\d,]+)"  // Any number after currency symbol
+            "(?:for|of|with|worth)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)|" +  // Preposition + amount
+            "(?:sent|paid)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+\\.?\\d*)\\s+(?:from|to)"  // Generic format for all banks
         )
         
         var amount = 0.0
@@ -419,6 +421,11 @@ class SmsReceiver : BroadcastReceiver() {
         
         // If amount is still 0, try the secondary regex
         if (amount == 0.0) {
+            val secondaryAmountRegex = Regex(
+                "(?<=\\s|^)(?:Rs\\.?|INR|₹)?\\s*(\\d[\\d,]+\\.?\\d*)(?=\\s|$)|" +  // Numbers that look like amounts
+                "(?<=\\s|^)(\\d+\\.\\d{2})(?=\\s|$)|" +  // Numbers with exactly 2 decimal places
+                "(?:Rs|INR|₹)?\\s*([\\d,]+)"  // Any number after currency symbol
+            )
             val secondaryMatch = secondaryAmountRegex.find(body)
             if (secondaryMatch != null) {
                 for (i in 1 until secondaryMatch.groupValues.size) {
@@ -443,6 +450,15 @@ class SmsReceiver : BroadcastReceiver() {
                 // Choose the most likely amount (typically the largest number in the SMS)
                 amount = allNumbers.maxOrNull() ?: 0.0
             }
+        }
+        
+        // Determine if this is likely a debit/expense based on message content
+        val isLikelyDebit = DEBIT_PATTERNS.any { body.contains(it, ignoreCase = true) }
+        
+        // Make amount negative for debits - this handles expense transactions from all banks uniformly
+        if (isLikelyDebit && amount > 0) {
+            amount = -amount
+            captureLog("Converting to negative amount for debit transaction: -$amount")
         }
         
         // Enhanced merchant detection with multiple patterns and context awareness
