@@ -226,13 +226,20 @@ class TransactionRepositoryImpl @Inject constructor(
         
         Log.d(TAG, "Calculating total income with base income: $baseIncome")
         
-        // Extract sum of income transactions directly from the database for efficiency
-        return transactionDao.getTotalAmountByTypeAndDateRange(TransactionType.INCOME, startDate, endDate)
-            .map { transactionIncomeTotal ->
-                val transactionSum = transactionIncomeTotal ?: 0.0
-                val totalIncome = baseIncome + transactionSum
+        // Use existing DAO method that we know works
+        return transactionDao.getTransactionsByTypeAndDateRange(TransactionType.INCOME, startDate, endDate)
+            .map { incomeTransactions ->
+                var transactionTotal = 0.0
                 
-                Log.d(TAG, "Income calculation: Base($baseIncome) + Transactions($transactionSum) = Total($totalIncome)")
+                // Calculate sum of all income transactions
+                incomeTransactions.forEach { transaction ->
+                    transactionTotal += transaction.amount
+                }
+                
+                // Add base income to transaction total
+                val totalIncome = baseIncome + transactionTotal
+                
+                Log.d(TAG, "Income calculation: Base($baseIncome) + Transactions($transactionTotal) = Total($totalIncome)")
                 totalIncome
             }
     }

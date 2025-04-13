@@ -112,5 +112,9 @@ class HomeViewModel @Inject constructor(
      */
     fun onAddTransactionNavigated() {
         _navigateToAddTransaction.value = false
+        
+        // Refresh data after returning from add transaction screen to ensure
+        // any new transactions are reflected in the income and spending totals
+        refresh()
     }
 } 
