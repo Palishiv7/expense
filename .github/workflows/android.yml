@@ -107,14 +107,14 @@ jobs:
         echo "apk_filename=$APK_FILENAME" >> $GITHUB_OUTPUT
 
     - name: Upload Debug APK
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact
       with:
         name: app-debug-${{ env.VERSION_NAME }}
         path: ${{ env.APK_PATH }}
         
     # Create GitHub Release for tagged commits
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: ${{ env.APK_PATH }}
