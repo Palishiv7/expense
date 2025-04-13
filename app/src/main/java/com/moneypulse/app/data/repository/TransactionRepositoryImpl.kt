@@ -61,6 +61,11 @@ class TransactionRepositoryImpl @Inject constructor(
      * while still allowing legitimate repeated transactions
      */
     private suspend fun isDuplicateTransaction(newTransaction: TransactionSms): Boolean {
+        // Skip duplicate detection for manual entries - allow multiple entries
+        if (newTransaction.sender == "Manual Entry") {
+            return false
+        }
+        
         // Calculate a time threshold (2 minutes window for potential duplicates)
         val timeThreshold = 2 * 60 * 1000 // 2 minutes in milliseconds
         val recentTimeWindow = newTransaction.timestamp - timeThreshold
@@ -91,7 +96,7 @@ class TransactionRepositoryImpl @Inject constructor(
             
             // 3. Check for similar attributes within a very short time window (30 seconds)
             val isVeryRecent = newTransaction.timestamp - existingTransaction.date.time < 30 * 1000
-            val isSameAmount = Math.abs(existingTransaction.amount - newTransaction.amount) < 0.01
+            val isSameAmount = Math.abs(existingTransaction.amount - Math.abs(newTransaction.amount)) < 0.01
             val isSameMerchant = existingTransaction.merchantName.equals(
                 newTransaction.merchantName, 
                 ignoreCase = true

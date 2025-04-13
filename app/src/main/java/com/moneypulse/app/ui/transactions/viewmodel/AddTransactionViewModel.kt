@@ -110,11 +110,11 @@ class AddTransactionViewModel @Inject constructor(
                 // Save to repository
                 transactionRepository.processNewTransactionSms(transaction)
                 
-                // Set success flag
-                _saveSuccessful.value = true
-                
-                // Reset form
+                // Reset form first, then set success flag
                 resetForm()
+                
+                // Set success flag last (this will trigger navigation)
+                _saveSuccessful.value = true
             } catch (e: Exception) {
                 _errorMessage.value = "Error saving transaction: ${e.message}"
             }
