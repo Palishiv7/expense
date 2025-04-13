@@ -458,7 +458,7 @@ class SmsReceiver : BroadcastReceiver() {
         // Make amount negative for debits - this handles expense transactions from all banks uniformly
         if (isLikelyDebit && amount > 0) {
             amount = -amount
-            captureLog("Converting to negative amount for debit transaction: -$amount")
+            captureLog("Converting to negative amount for debit transaction: $amount")
         }
         
         // Enhanced merchant detection with multiple patterns and context awareness
