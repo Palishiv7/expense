@@ -20,26 +20,29 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.moneypulse.app.R
 import com.moneypulse.app.data.local.entity.TransactionType
+import com.moneypulse.app.domain.model.Categories
+import com.moneypulse.app.domain.model.Category
 import com.moneypulse.app.ui.transactions.viewmodel.AddTransactionViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun AddTransactionScreen(
     navController: NavController,
-    viewModel: AddTransactionViewModel = hiltViewModel()
+    viewModel: AddTransactionViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     val amount by viewModel.amount.collectAsState()
     val merchantName by viewModel.merchantName.collectAsState()
     val description by viewModel.description.collectAsState()
     val category by viewModel.category.collectAsState()
-    val transactionType by viewModel.transactionType.collectAsState()
+    val isExpense by viewModel.isExpense.collectAsState()
     val saveSuccessful by viewModel.saveSuccessful.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     
     // Handle navigation after successful save
     LaunchedEffect(saveSuccessful) {
-        if (saveSuccessful == true) {
-            // Wait briefly to show success message
-            kotlinx.coroutines.delay(1000)
+        if (saveSuccessful) {
+            // Small delay to show success message
+            delay(500)
             navController.popBackStack()
         }
     }
@@ -47,7 +50,7 @@ fun AddTransactionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.add_transaction_title)) },
+                title = { Text(text = stringResource(id = R.string.add_transaction_title)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
@@ -58,49 +61,45 @@ fun AddTransactionScreen(
                 }
             )
         }
-    ) { paddingValues ->
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(padding)
+                .padding(16.dp)
         ) {
-            // Transaction type selector
+            // Transaction type toggle (Expense/Income)
             TransactionTypeSelector(
-                isExpense = transactionType == TransactionType.EXPENSE,
+                isExpense = isExpense,
                 onToggle = { viewModel.toggleTransactionType() }
             )
             
-            // Amount input
-            Text(
-                text = stringResource(R.string.amount),
-                fontWeight = FontWeight.Medium
-            )
+            Spacer(modifier = Modifier.height(16.dp))
             
+            // Amount input
             OutlinedTextField(
                 value = amount,
                 onValueChange = { viewModel.updateAmount(it) },
+                label = { Text(stringResource(R.string.amount_hint)) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(stringResource(R.string.amount_hint)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                leadingIcon = { Text("₹", fontSize = 18.sp) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                leadingIcon = { Text("₹") },
                 singleLine = true
             )
             
-            // Merchant name input
-            Text(
-                text = stringResource(R.string.merchant),
-                fontWeight = FontWeight.Medium
-            )
+            Spacer(modifier = Modifier.height(16.dp))
             
+            // Merchant input
             OutlinedTextField(
                 value = merchantName,
                 onValueChange = { viewModel.updateMerchantName(it) },
+                label = { Text(stringResource(R.string.merchant)) },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text(stringResource(R.string.merchant_hint)) },
                 singleLine = true
             )
+            
+            Spacer(modifier = Modifier.height(16.dp))
             
             // Category input
             Text(
@@ -109,12 +108,48 @@ fun AddTransactionScreen(
             )
             
             OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.category)) },
                 value = category,
                 onValueChange = { viewModel.updateCategory(it) },
-                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
                 placeholder = { Text(stringResource(R.string.category_hint)) },
-                singleLine = true
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    focusedBorderColor = MaterialTheme.colors.primary
+                )
             )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Visual Category Selector
+            Text(
+                text = stringResource(R.string.category),
+                style = MaterialTheme.typography.subtitle1,
+                color = MaterialTheme.colors.onSurface
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Category chips
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Get all categories from the Categories object
+                val allCategories = Categories.ALL
+                
+                items(allCategories) { categoryItem ->
+                    val isSelected = category == categoryItem.id
+                    
+                    CategoryChip(
+                        category = categoryItem,
+                        isSelected = isSelected,
+                        onClick = { viewModel.updateCategory(categoryItem.id) }
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
             
             // Description input (optional)
             Text(
@@ -221,5 +256,53 @@ fun TransactionTypeButton(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(vertical = 4.dp)
         )
+    }
+}
+
+@Composable
+fun CategoryChip(
+    category: Category,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val backgroundColor = if (isSelected) category.color.copy(alpha = 0.2f) else Color.Transparent
+    val borderColor = category.color
+    val textColor = if (isSelected) category.color else MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+    
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                width = 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(16.dp)
+            )
+            .background(backgroundColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        elevation = 0.dp
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            // Category color indicator
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(category.color)
+            )
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            // Category name
+            Text(
+                text = category.displayName,
+                style = MaterialTheme.typography.body2,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = textColor
+            )
+        }
     }
 } 

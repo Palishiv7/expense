@@ -14,5 +14,5 @@ data class TransactionSms(
     val merchantName: String,
     val timestamp: Long,
     val description: String = "", // Optional description
-    val category: String = ""     // Optional category
+    val category: String = ""     // Category ID from Categories class
 ) : Parcelable 

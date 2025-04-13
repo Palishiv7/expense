@@ -2,8 +2,8 @@ package com.moneypulse.app.ui.transactions.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.moneypulse.app.data.local.entity.TransactionType
 import com.moneypulse.app.data.repository.TransactionRepository
+import com.moneypulse.app.domain.model.Categories
 import com.moneypulse.app.domain.model.TransactionSms
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +18,7 @@ class AddTransactionViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository
 ) : ViewModel() {
     
-    // Transaction amount
+    // Amount
     private val _amount = MutableStateFlow("")
     val amount: StateFlow<String> = _amount.asStateFlow()
     
@@ -26,29 +26,28 @@ class AddTransactionViewModel @Inject constructor(
     private val _merchantName = MutableStateFlow("")
     val merchantName: StateFlow<String> = _merchantName.asStateFlow()
     
-    // Transaction description
+    // Description
     private val _description = MutableStateFlow("")
     val description: StateFlow<String> = _description.asStateFlow()
     
     // Category
-    private val _category = MutableStateFlow("Other")
+    private val _category = MutableStateFlow(Categories.OTHER.id)
     val category: StateFlow<String> = _category.asStateFlow()
     
-    // Transaction type (expense or income)
-    private val _transactionType = MutableStateFlow(TransactionType.EXPENSE)
-    val transactionType: StateFlow<TransactionType> = _transactionType.asStateFlow()
+    // Transaction type (expense by default)
+    private val _isExpense = MutableStateFlow(true)
+    val isExpense: StateFlow<Boolean> = _isExpense.asStateFlow()
     
-    // Save status
-    private val _saveSuccessful = MutableStateFlow<Boolean?>(null)
-    val saveSuccessful: StateFlow<Boolean?> = _saveSuccessful.asStateFlow()
+    // Status indicators
+    private val _saveSuccessful = MutableStateFlow(false)
+    val saveSuccessful: StateFlow<Boolean> = _saveSuccessful.asStateFlow()
     
-    // Error message
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     
-    // Update amount field
+    // Update amount
     fun updateAmount(newAmount: String) {
-        // Only allow valid decimal input
+        // Only allow valid decimal numbers
         if (newAmount.isEmpty() || newAmount.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
             _amount.value = newAmount
         }
@@ -71,11 +70,7 @@ class AddTransactionViewModel @Inject constructor(
     
     // Toggle transaction type between expense and income
     fun toggleTransactionType() {
-        _transactionType.value = if (_transactionType.value == TransactionType.EXPENSE) {
-            TransactionType.INCOME
-        } else {
-            TransactionType.EXPENSE
-        }
+        _isExpense.value = !_isExpense.value
     }
     
     // Save the transaction
@@ -83,53 +78,56 @@ class AddTransactionViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // Validate input
+                if (_amount.value.isEmpty() || _merchantName.value.isEmpty()) {
+                    _errorMessage.value = "Please enter amount and merchant name"
+                    return@launch
+                }
+                
                 val amountValue = _amount.value.toDoubleOrNull()
                 if (amountValue == null || amountValue <= 0) {
                     _errorMessage.value = "Please enter a valid amount"
                     return@launch
                 }
                 
-                if (_merchantName.value.isBlank()) {
-                    _errorMessage.value = "Please enter a merchant name"
-                    return@launch
-                }
+                // Create transaction with or without a sign based on type
+                val finalAmount = if (_isExpense.value) -amountValue else amountValue
                 
-                // Create TransactionSms object
+                // Create transaction object
                 val transaction = TransactionSms(
                     sender = "Manual Entry",
-                    body = "Manually added transaction",
-                    amount = if (_transactionType.value == TransactionType.EXPENSE) amountValue else -amountValue,
+                    body = _description.value.ifEmpty { "Manual transaction" },
+                    amount = finalAmount,
                     merchantName = _merchantName.value,
-                    timestamp = System.currentTimeMillis(),
-                    description = _description.value,
-                    category = _category.value
+                    category = _category.value,
+                    timestamp = Date().time
                 )
                 
                 // Save to repository
                 transactionRepository.processNewTransactionSms(transaction)
+                
+                // Set success flag
                 _saveSuccessful.value = true
                 
                 // Reset form
                 resetForm()
             } catch (e: Exception) {
                 _errorMessage.value = "Error saving transaction: ${e.message}"
-                _saveSuccessful.value = false
             }
         }
     }
     
-    // Reset the form
-    fun resetForm() {
+    // Reset form after successful save
+    private fun resetForm() {
         _amount.value = ""
         _merchantName.value = ""
         _description.value = ""
-        _category.value = "Other"
-        _transactionType.value = TransactionType.EXPENSE
+        _category.value = Categories.OTHER.id
+        _isExpense.value = true
     }
     
     // Reset status values after they've been observed
     fun resetStatus() {
-        _saveSuccessful.value = null
+        _saveSuccessful.value = false
         _errorMessage.value = null
     }
 } 

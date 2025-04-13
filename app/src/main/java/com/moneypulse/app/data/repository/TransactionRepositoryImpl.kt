@@ -4,6 +4,7 @@ import android.util.Log
 import com.moneypulse.app.data.local.dao.TransactionDao
 import com.moneypulse.app.data.local.entity.TransactionEntity
 import com.moneypulse.app.data.local.entity.TransactionType
+import com.moneypulse.app.domain.model.Categories
 import com.moneypulse.app.domain.model.TransactionSms
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -78,28 +79,73 @@ class TransactionRepositoryImpl @Inject constructor(
     
     /**
      * Simple method to assign a category based on merchant name
-     * In a real app, this would use machine learning or a more sophisticated approach
+     * Maps common merchants to appropriate categories
      */
     private fun getCategoryForMerchant(merchantName: String): String {
-        return when {
-            merchantName.contains("swiggy", ignoreCase = true) ||
-            merchantName.contains("zomato", ignoreCase = true) ||
-            merchantName.contains("food", ignoreCase = true) -> "Food"
-            
-            merchantName.contains("uber", ignoreCase = true) ||
-            merchantName.contains("ola", ignoreCase = true) ||
-            merchantName.contains("train", ignoreCase = true) ||
-            merchantName.contains("metro", ignoreCase = true) -> "Transport"
-            
-            merchantName.contains("netflix", ignoreCase = true) ||
-            merchantName.contains("prime", ignoreCase = true) ||
-            merchantName.contains("hotstar", ignoreCase = true) -> "Entertainment"
-            
-            merchantName.contains("amazon", ignoreCase = true) ||
-            merchantName.contains("flipkart", ignoreCase = true) ||
-            merchantName.contains("myntra", ignoreCase = true) -> "Shopping"
-            
-            else -> "Other"
+        val normalizedName = merchantName.lowercase()
+        
+        // Food & Restaurants
+        if (normalizedName.containsAny(
+            "swiggy", "zomato", "food", "pizza", "burger", "restaurant", 
+            "cafe", "dhaba", "kitchen", "catering", "hotel", "eat", "dine", 
+            "dominos", "mcdonald", "kfc", "subway", "biryani", "chai", "bakery"
+        )) {
+            return Categories.FOOD.id
         }
+        
+        // Transport & Travel
+        if (normalizedName.containsAny(
+            "uber", "ola", "rapido", "train", "metro", "railway", "irctc", 
+            "bus", "transport", "travel", "ticket", "air", "flight", "cab", 
+            "taxi", "makemytrip", "yatra", "redbus", "goibibo", "petrol", "diesel", "fuel"
+        )) {
+            return Categories.TRANSPORT.id
+        }
+        
+        // Shopping
+        if (normalizedName.containsAny(
+            "amazon", "flipkart", "myntra", "ajio", "nykaa", "tatacliq", "meesho",
+            "snapdeal", "shop", "store", "mart", "bazaar", "mall", "market", 
+            "clothing", "fashion", "purchase", "retail", "bigbasket", "grofer"
+        )) {
+            return Categories.SHOPPING.id
+        }
+        
+        // Bills & Utilities
+        if (normalizedName.containsAny(
+            "bill", "recharge", "electric", "water", "gas", "utility", "phone", 
+            "mobile", "broadband", "internet", "wifi", "dth", "airtel", "jio", 
+            "vodafone", "vi", "bsnl", "tata", "postpaid", "prepaid", "fastag"
+        )) {
+            return Categories.BILLS.id
+        }
+        
+        // Entertainment
+        if (normalizedName.containsAny(
+            "netflix", "prime", "hotstar", "disney", "sony", "zee", "movie", 
+            "game", "play", "sport", "subscription", "premium", "theatre", 
+            "show", "concert", "event", "ticket", "entertainment", "music", "spotify", "gaana"
+        )) {
+            return Categories.ENTERTAINMENT.id
+        }
+        
+        // Healthcare
+        if (normalizedName.containsAny(
+            "hospital", "clinic", "doctor", "medical", "pharma", "medicine", 
+            "health", "care", "pharmacy", "apollo", "diagnostic", "lab", 
+            "test", "consultation", "dentist", "physician", "therapy", "treatment"
+        )) {
+            return Categories.HEALTHCARE.id
+        }
+        
+        // Default category if no match
+        return Categories.OTHER.id
+    }
+    
+    /**
+     * Helper extension function to check if a string contains any of the given keywords
+     */
+    private fun String.containsAny(vararg keywords: String): Boolean {
+        return keywords.any { this.contains(it) }
     }
 } 
