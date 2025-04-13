@@ -52,64 +52,117 @@ jobs:
         
     - name: Setup Gradle
       run: |
-        # Make gradlew executable
-        if [ -f "./gradlew" ]; then
-          chmod +x ./gradlew
+        echo "Current working directory: $(pwd)"
+        echo "Listing files in current directory:"
+        ls -la
+        
+        # Try to find gradlew anywhere in the repository
+        GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
+        
+        if [ -n "$GRADLEW_PATH" ]; then
+          echo "Found gradlew at: $GRADLEW_PATH"
+          chmod +x "$GRADLEW_PATH"
+          echo "GRADLEW_PATH=$GRADLEW_PATH" >> $GITHUB_ENV
+          echo "PROJECT_DIR=$(dirname $GRADLEW_PATH)" >> $GITHUB_ENV
         else
-          echo "No gradlew file found in root directory"
-          find . -name "gradlew" -type f -exec chmod +x {} \;
+          echo "No gradlew file found in repository, attempting to generate one"
+          # Download and extract Gradle
+          wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip -q gradle-8.2-bin.zip
+          export PATH=$PATH:$(pwd)/gradle-8.2/bin
+          
+          # Generate wrapper
+          gradle wrapper
+          
+          if [ -f "./gradlew" ]; then
+            echo "Successfully generated gradlew"
+            chmod +x ./gradlew
+            echo "GRADLEW_PATH=./gradlew" >> $GITHUB_ENV
+            echo "PROJECT_DIR=." >> $GITHUB_ENV
+          else
+            echo "Failed to generate gradlew"
+            exit 1
+          fi
         fi
         
     - name: Build Debug APK
       run: |
-        # Apply version code and name if gradlew exists in root
-        if [ -f "./gradlew" ]; then
-          ./gradlew assembleDebug \
-          --no-daemon \
-          --stacktrace \
-          -PversionCode=${{ env.VERSION_CODE }} \
-          -PversionName=${{ env.VERSION_NAME }}
-        else
-          # Try to find gradlew in subdirectories
-          GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
-          if [ -n "$GRADLEW_PATH" ]; then
-            echo "Using gradlew at: $GRADLEW_PATH"
-            $GRADLEW_PATH assembleDebug \
-            --no-daemon \
-            --stacktrace \
-            -PversionCode=${{ env.VERSION_CODE }} \
-            -PversionName=${{ env.VERSION_NAME }}
-          else
-            echo "Failed to find gradlew file"
-            exit 1
-          fi
-        fi
+        echo "Using gradlew at: ${{ env.GRADLEW_PATH }}"
+        echo "Project directory: ${{ env.PROJECT_DIR }}"
+        
+        # Change to the project directory
+        cd "${{ env.PROJECT_DIR }}"
+        
+        # Run the build
+        "${{ env.GRADLEW_PATH }}" assembleDebug \
+        --no-daemon \
+        --stacktrace \
+        -PversionCode=${{ env.VERSION_CODE }} \
+        -PversionName=${{ env.VERSION_NAME }}
     
     - name: Find and package APK
       id: find-apk
       run: |
+        echo "::group::Finding APK files"
+        
         # Create artifacts directory
         mkdir -p artifacts
         
         # Find all generated APK files
         APK_FILES=$(find . -name "*.apk" -type f)
+        
         if [ -z "$APK_FILES" ]; then
-          echo "No APK files found!"
-          exit 1
+          echo "No APK files found in the main search!"
+          
+          # Try a more specific path if we know the project directory
+          if [ -n "${{ env.PROJECT_DIR }}" ]; then
+            echo "Searching for APKs in specific build output directories..."
+            
+            # Common output paths for Android APKs
+            COMMON_PATHS=(
+              "${{ env.PROJECT_DIR }}/app/build/outputs/apk"
+              "${{ env.PROJECT_DIR }}/build/outputs/apk"
+              "${{ env.PROJECT_DIR }}/*/build/outputs/apk"
+            )
+            
+            for path in "${COMMON_PATHS[@]}"; do
+              echo "Checking $path"
+              if [ -d "$path" ]; then
+                SPECIFIC_APK_FILES=$(find "$path" -name "*.apk" -type f)
+                if [ -n "$SPECIFIC_APK_FILES" ]; then
+                  APK_FILES="$SPECIFIC_APK_FILES"
+                  echo "Found APKs in $path"
+                  break
+                fi
+              fi
+            done
+          fi
+          
+          # If still no APKs found, exit with error
+          if [ -z "$APK_FILES" ]; then
+            echo "Listing all directories to debug:"
+            find . -type d | grep -v "node_modules" | sort
+            echo "No APK files found anywhere! Build might have failed."
+            exit 1
+          fi
         fi
+        
+        echo "Found APK files:"
+        echo "$APK_FILES"
         
         # Use the most recently modified APK
         LATEST_APK=$(ls -t $APK_FILES | head -n 1)
-        echo "Found APK: $LATEST_APK"
+        echo "Selected most recent APK: $LATEST_APK"
         
         # Copy APK to artifacts directory with a standardized name
         APK_FILENAME="MoneyPulse-debug-${{ env.VERSION_NAME }}.apk"
         cp "$LATEST_APK" "artifacts/$APK_FILENAME"
-        echo "APK ready at: artifacts/$APK_FILENAME"
+        echo "APK copied to: artifacts/$APK_FILENAME"
         
         # Set environment variable for APK path
         echo "APK_PATH=artifacts/$APK_FILENAME" >> $GITHUB_ENV
         echo "apk_path=artifacts/$APK_FILENAME" >> $GITHUB_OUTPUT
+        echo "::endgroup::"
         
     # Simplified artifact storage - write to actions artifact storage directly
     - name: Upload Artifacts
