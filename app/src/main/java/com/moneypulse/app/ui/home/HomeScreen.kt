@@ -104,10 +104,14 @@ fun SpendingSummaryCard(monthlySpending: Double, monthlyIncome: Double) {
     val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     formatter.maximumFractionDigits = 0
     
-    // For the MVP, we're using placeholder values for income and balance
-    val spentAmount = formatter.format(monthlySpending)
+    // Format the spending amount with negative sign for display
+    val spentAmount = formatter.format(-Math.abs(monthlySpending))
+    
     val incomeAmount = formatter.format(monthlyIncome)
-    val balanceAmount = formatter.format(monthlyIncome - monthlySpending)
+    
+    // Calculate balance correctly: Income minus Spending (absolute value)
+    val balance = monthlyIncome - Math.abs(monthlySpending)
+    val balanceAmount = formatter.format(balance)
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -223,6 +227,13 @@ fun TransactionItem(transaction: TransactionSms) {
     val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     formatter.maximumFractionDigits = 0
     
+    // Determine color based on amount (negative = expense, positive = income)
+    val amountColor = if (transaction.amount < 0) {
+        Color(0xFFE53935) // Red for expenses
+    } else {
+        Color(0xFF43A047) // Green for income
+    }
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -242,7 +253,7 @@ fun TransactionItem(transaction: TransactionSms) {
         Text(
             text = formatter.format(transaction.amount),
             fontWeight = FontWeight.Bold,
-            color = Color(0xFFE53935) // Assuming all SMS transactions are expenses
+            color = amountColor
         )
     }
 }
