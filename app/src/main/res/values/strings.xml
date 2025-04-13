@@ -53,7 +53,7 @@
     <string name="category_other">Other</string>
     
     <!-- Transaction Mode Dialog -->
-    <string name="transaction_mode_title">Select Transaction Mode</string>
+    <string name="select_transaction_mode_title">Select Transaction Mode</string>
     <string name="automatic_mode">Automatic</string>
     <string name="manual_mode">Manual</string>
     <string name="mode_description">Choose how you want to track your transactions</string>
