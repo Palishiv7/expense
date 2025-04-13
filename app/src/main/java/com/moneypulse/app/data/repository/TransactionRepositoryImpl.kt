@@ -209,6 +209,34 @@ class TransactionRepositoryImpl @Inject constructor(
             }
     }
     
+    override fun getTotalMonthlyIncome(baseIncome: Double): Flow<Double> {
+        val calendar = Calendar.getInstance()
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentYear = calendar.get(Calendar.YEAR)
+        
+        // Set to first day of month
+        calendar.set(currentYear, currentMonth, 1, 0, 0, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        val startDate = calendar.time
+        
+        // Set to last day of month
+        calendar.set(currentYear, currentMonth, calendar.getActualMaximum(Calendar.DAY_OF_MONTH), 23, 59, 59)
+        calendar.set(Calendar.MILLISECOND, 999)
+        val endDate = calendar.time
+        
+        Log.d(TAG, "Calculating total income with base income: $baseIncome")
+        
+        // Extract sum of income transactions directly from the database for efficiency
+        return transactionDao.getTotalAmountByTypeAndDateRange(TransactionType.INCOME, startDate, endDate)
+            .map { transactionIncomeTotal ->
+                val transactionSum = transactionIncomeTotal ?: 0.0
+                val totalIncome = baseIncome + transactionSum
+                
+                Log.d(TAG, "Income calculation: Base($baseIncome) + Transactions($transactionSum) = Total($totalIncome)")
+                totalIncome
+            }
+    }
+    
     override fun getRecentTransactions(limit: Int): Flow<List<TransactionSms>> {
         return transactionDao.getRecentTransactions(limit)
             .map { entities ->

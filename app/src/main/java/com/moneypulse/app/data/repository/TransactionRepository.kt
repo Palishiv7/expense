@@ -24,6 +24,11 @@ interface TransactionRepository {
     fun getMonthlyIncomeTransactions(): Flow<List<TransactionSms>>
     
     /**
+     * Get total monthly income (base + transactions)
+     */
+    fun getTotalMonthlyIncome(baseIncome: Double): Flow<Double>
+    
+    /**
      * Get recent transactions
      */
     fun getRecentTransactions(limit: Int): Flow<List<TransactionSms>>

@@ -43,9 +43,6 @@ class HomeViewModel @Inject constructor(
     init {
         // Load data when ViewModel is created
         loadData()
-        
-        // Set up observer for income transactions
-        observeIncomeTransactions()
     }
     
     /**
@@ -69,40 +66,15 @@ class HomeViewModel @Inject constructor(
             }
         }
         
-        // Refresh income value from preferences
-        _monthlyIncome.value = preferenceHelper.getUserIncome()
-    }
-    
-    /**
-     * Observe income transactions to update monthly income
-     */
-    private fun observeIncomeTransactions() {
+        // Load total monthly income (base + transactions) using the unified calculator
         viewModelScope.launch {
-            // Get income transactions for the current month
-            transactionRepository.getMonthlyIncomeTransactions().collectLatest { incomeTransactions ->
-                // Log the income transactions we received
-                Log.d("HomeViewModel", "Received ${incomeTransactions.size} income transactions")
-                incomeTransactions.forEach { transaction ->
-                    Log.d("HomeViewModel", "Income transaction: ${transaction.merchantName}, amount: ${transaction.amount}")
-                }
-                
-                // Calculate total from transactions and add to base income
-                var totalIncome = preferenceHelper.getUserIncome()
-                Log.d("HomeViewModel", "Base income from preferences: $totalIncome")
-                
-                // Add up all income transactions for the month
-                var transactionsTotal = 0.0
-                incomeTransactions.forEach { transaction ->
-                    if (transaction.amount > 0) {
-                        transactionsTotal += transaction.amount
-                    }
-                }
-                
-                totalIncome += transactionsTotal
-                Log.d("HomeViewModel", "Added $transactionsTotal from transactions, new total: $totalIncome")
-                
-                // Update the income value
+            // Get the base income from preferences
+            val baseIncome = preferenceHelper.getUserIncome()
+            
+            // Get combined income (base + transactions)
+            transactionRepository.getTotalMonthlyIncome(baseIncome).collectLatest { totalIncome ->
                 _monthlyIncome.value = totalIncome
+                Log.d("HomeViewModel", "Updated income to: $totalIncome")
             }
         }
     }
@@ -112,7 +84,13 @@ class HomeViewModel @Inject constructor(
      */
     fun updateMonthlyIncome(income: Double) {
         preferenceHelper.setUserIncome(income)
-        _monthlyIncome.value = income
+        
+        // Refresh the income calculation to include both base income and transactions
+        viewModelScope.launch {
+            transactionRepository.getTotalMonthlyIncome(income).collectLatest { totalIncome ->
+                _monthlyIncome.value = totalIncome
+            }
+        }
     }
     
     /**

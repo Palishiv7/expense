@@ -243,13 +243,13 @@ class SmsReceiver : BroadcastReceiver() {
                     Log.d(TAG, "Evaluating SMS from: $sender, body: ${body.take(50)}...")
                     captureLog("Evaluating SMS from: $sender, body: ${body.take(50)}...")
                 
-                    // Check if this is a transaction SMS
-                    if (isTransactionSms(sender, body)) {
+                // Check if this is a transaction SMS
+                if (isTransactionSms(sender, body)) {
                         Log.d(TAG, "Transaction SMS detected!")
                         captureLog("Transaction SMS detected!")
                         
                         // Parse transaction details
-                        val transaction = parseTransactionDetails(sender, body)
+                    val transaction = parseTransactionDetails(sender, body)
                         
                         // Skip if we couldn't extract a valid amount
                         if (transaction.amount == 0.0) {
@@ -262,19 +262,19 @@ class SmsReceiver : BroadcastReceiver() {
                         Log.d(TAG, "Extracted: ${transaction.merchantName}, Amount: ${transaction.amount}")
                         captureLog("Extracted: ${transaction.merchantName}, Amount: ${transaction.amount}")
                     
-                        // Check if automatic transaction mode is enabled
-                        if (preferenceHelper.isAutoTransactionEnabled()) {
-                            // Automatically add the transaction to database
+                    // Check if automatic transaction mode is enabled
+                    if (preferenceHelper.isAutoTransactionEnabled()) {
+                        // Automatically add the transaction to database
                             Log.d(TAG, "Auto mode: Adding transaction automatically")
                             captureLog("Auto mode: Adding transaction automatically")
-                            CoroutineScope(Dispatchers.IO).launch {
-                                transactionRepository.processNewTransactionSms(transaction)
-                            }
-                        } else {
-                            // Show notification for manual review
+                        CoroutineScope(Dispatchers.IO).launch {
+                            transactionRepository.processNewTransactionSms(transaction)
+                        }
+                    } else {
+                        // Show notification for manual review
                             Log.d(TAG, "Manual mode: Showing notification for user review")
                             captureLog("Manual mode: Showing notification for user review")
-                            NotificationHelper.showTransactionNotification(context, transaction)
+                        NotificationHelper.showTransactionNotification(context, transaction)
                         }
                     } else {
                         // Log a message indicating this SMS was not detected as a transaction
@@ -564,7 +564,7 @@ class SmsReceiver : BroadcastReceiver() {
                     val afterKeyword = body.substring(lowerBody.indexOf(keyword) + keyword.length)
                     val capitalizedPattern = Regex("([A-Z][A-Za-z0-9\\s&'-]{2,})")
                     val match = capitalizedPattern.find(afterKeyword)
-                    if (match != null) {
+            if (match != null) {
                         merchantName = match.groupValues[1].trim()
                         captureLog("Extracted capitalized word after '$keyword': $merchantName")
                         return@any true // Break the loop
