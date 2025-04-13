@@ -85,9 +85,12 @@ jobs:
           fi
         fi
     
-    - name: Find APK
+    - name: Find and package APK
       id: find-apk
       run: |
+        # Create artifacts directory
+        mkdir -p artifacts
+        
         # Find all generated APK files
         APK_FILES=$(find . -name "*.apk" -type f)
         if [ -z "$APK_FILES" ]; then
@@ -98,25 +101,49 @@ jobs:
         # Use the most recently modified APK
         LATEST_APK=$(ls -t $APK_FILES | head -n 1)
         echo "Found APK: $LATEST_APK"
-        echo "APK_PATH=$LATEST_APK" >> $GITHUB_ENV
-        echo "apk_path=$LATEST_APK" >> $GITHUB_OUTPUT
         
-        # Extract APK filename
-        APK_FILENAME=$(basename "$LATEST_APK")
-        echo "APK_FILENAME=$APK_FILENAME" >> $GITHUB_ENV
-        echo "apk_filename=$APK_FILENAME" >> $GITHUB_OUTPUT
-
-    - name: Upload Debug APK
-      uses: actions/upload-artifact@v1
-      with:
-        name: app-debug-${{ env.VERSION_NAME }}
-        path: ${{ env.APK_PATH }}
+        # Copy APK to artifacts directory with a standardized name
+        APK_FILENAME="MoneyPulse-debug-${{ env.VERSION_NAME }}.apk"
+        cp "$LATEST_APK" "artifacts/$APK_FILENAME"
+        echo "APK ready at: artifacts/$APK_FILENAME"
         
-    # Create GitHub Release for tagged commits
+        # Set environment variable for APK path
+        echo "APK_PATH=artifacts/$APK_FILENAME" >> $GITHUB_ENV
+        echo "apk_path=artifacts/$APK_FILENAME" >> $GITHUB_OUTPUT
+        
+    # Simplified artifact storage - write to actions artifact storage directly
+    - name: Upload Artifacts
+      run: |
+        echo "::group::Uploading artifacts"
+        
+        # Create a tarball of the artifacts directory
+        tar -czvf artifacts.tar.gz artifacts/
+        
+        # Artifacts are automatically saved if they're in the .github/artifacts directory
+        mkdir -p .github/artifacts
+        mv artifacts.tar.gz .github/artifacts/
+        
+        echo "Artifacts have been packaged and saved to GitHub storage"
+        echo "::endgroup::"
+        
+    # Create GitHub Release for tagged commits (using artifact directly)
     - name: Release
-      uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: ${{ env.APK_PATH }}
+      run: |
+        echo "::group::Creating release"
+        
+        # Get the tag name
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        echo "Creating release for tag: $TAG_NAME"
+        
+        # Use GitHub CLI to create a release and upload the APK
+        # This requires the GITHUB_TOKEN to have the appropriate permissions
+        gh release create "$TAG_NAME" \
+          --title "MoneyPulse $TAG_NAME" \
+          --notes "Release $TAG_NAME" \
+          "${{ env.APK_PATH }}"
+        
+        echo "Release created successfully"
+        echo "::endgroup::"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
