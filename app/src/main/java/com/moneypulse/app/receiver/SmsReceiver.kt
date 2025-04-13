@@ -325,6 +325,18 @@ class SmsReceiver : BroadcastReceiver() {
             return false
         }
         
+        // Additional criteria: Check for amount patterns with enhanced regex
+        val amountPatterns = listOf(
+            // Common Indian formats
+            Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,]+(?:\\.\\d{1,2})?"),
+            // Amounts without currency symbol
+            Regex("(?<=\\s|^)\\d{1,3}(?:,\\d{3})*(?:\\.\\d{1,2})?(?=\\s|$)"),
+            // "Sent X.XX" pattern
+            Regex("(?:sent|paid|debited|deducted|withdrew)\\s+(?:Rs\\.?|INR|₹)?\\s*\\d+(?:\\.\\d{1,2})?"),
+            // Amount followed by "from" or "to"
+            Regex("\\d+(?:\\.\\d{1,2})?\\s+(?:from|to|by)")
+        )
+        
         // Relaxed filter: Allow messages that have amount patterns even if they look like balance updates
         val containsAmountPattern = amountPatterns.any { pattern ->
             pattern.find(body) != null
@@ -361,29 +373,9 @@ class SmsReceiver : BroadcastReceiver() {
             return false
         }
         
-        // Additional criteria: Check for amount patterns with enhanced regex
-        val amountPatterns = listOf(
-            // Common Indian formats
-            Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,]+(?:\\.\\d{1,2})?"),
-            // Amounts without currency symbol
-            Regex("(?<=\\s|^)\\d{1,3}(?:,\\d{3})*(?:\\.\\d{1,2})?(?=\\s|$)"),
-            // "Sent X.XX" pattern
-            Regex("(?:sent|paid|debited|deducted|withdrew)\\s+(?:Rs\\.?|INR|₹)?\\s*\\d+(?:\\.\\d{1,2})?"),
-            // Amount followed by "from" or "to"
-            Regex("\\d+(?:\\.\\d{1,2})?\\s+(?:from|to|by)")
-        )
-        
-        val containsAmountPattern = amountPatterns.any { pattern ->
-            pattern.find(body) != null
-        }
-        
-        if (!containsAmountPattern) {
-            Log.d(TAG, "SMS rejected: No amount pattern found")
-            return false
-        }
-        
         // Message passed all filters - it's a transaction message
         Log.d(TAG, "SMS accepted as transaction: $sender - ${body.take(50)}...")
+        captureLog("SMS accepted as transaction: $sender - ${body.take(50)}...")
         return true
     }
     
