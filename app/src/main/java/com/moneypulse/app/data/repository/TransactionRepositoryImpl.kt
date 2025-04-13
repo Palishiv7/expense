@@ -29,14 +29,24 @@ class TransactionRepositoryImpl @Inject constructor(
             return
         }
         
+        // Determine transaction type based on amount sign
+        val transactionType = if (transactionSms.amount < 0) {
+            TransactionType.EXPENSE
+        } else {
+            TransactionType.INCOME
+        }
+        
+        // Use absolute amount value for storage
+        val absoluteAmount = Math.abs(transactionSms.amount)
+        
         // Convert TransactionSms to TransactionEntity
         val transaction = TransactionEntity(
-            amount = transactionSms.amount,
+            amount = absoluteAmount,
             description = "Transaction at ${transactionSms.merchantName}",
             merchantName = transactionSms.merchantName,
-            category = getCategoryForMerchant(transactionSms.merchantName),
+            category = transactionSms.category.ifEmpty { getCategoryForMerchant(transactionSms.merchantName) },
             date = Date(transactionSms.timestamp),
-            type = TransactionType.EXPENSE, // Assuming SMS transactions are expenses
+            type = transactionType,
             smsBody = transactionSms.body,
             smsSender = transactionSms.sender
         )
@@ -139,23 +149,41 @@ class TransactionRepositoryImpl @Inject constructor(
         calendar.set(Calendar.MILLISECOND, 999)
         val endDate = calendar.time
         
-        return transactionDao.getTotalAmountByTypeAndDateRange(
-            TransactionType.EXPENSE,
-            startDate,
-            endDate
-        ).map { it ?: 0.0 }
+        // Get both expenses and income to calculate net spending
+        return transactionDao.getAllTransactionsByDateRange(startDate, endDate)
+            .map { transactions ->
+                var netAmount = 0.0
+                transactions.forEach { transaction ->
+                    val amount = transaction.amount
+                    // Expenses are negative, income is positive
+                    if (transaction.type == TransactionType.EXPENSE) {
+                        netAmount -= amount
+                    } else {
+                        netAmount += amount
+                    }
+                }
+                netAmount
+            }
     }
     
     override fun getRecentTransactions(limit: Int): Flow<List<TransactionSms>> {
         return transactionDao.getRecentTransactions(limit)
             .map { entities ->
                 entities.map { entity ->
+                    // Apply sign based on transaction type
+                    val signedAmount = if (entity.type == TransactionType.EXPENSE) {
+                        -entity.amount
+                    } else {
+                        entity.amount
+                    }
+                    
                     TransactionSms(
                         sender = entity.smsSender ?: "",
                         body = entity.smsBody ?: "",
-                        amount = entity.amount,
+                        amount = signedAmount,
                         merchantName = entity.merchantName,
-                        timestamp = entity.date.time
+                        timestamp = entity.date.time,
+                        category = entity.category
                     )
                 }
             }

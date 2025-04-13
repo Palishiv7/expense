@@ -52,4 +52,7 @@ interface TransactionDao {
     
     @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND ABS(amount - :amount) < 0.01 AND date >= :startTime")
     suspend fun findSimilarTransactions(merchantName: String, amount: Double, startTime: Long): List<TransactionEntity>
+    
+    @Query("SELECT * FROM transactions WHERE date BETWEEN :startDate AND :endDate ORDER BY date DESC")
+    fun getAllTransactionsByDateRange(startDate: Date, endDate: Date): Flow<List<TransactionEntity>>
 } 
