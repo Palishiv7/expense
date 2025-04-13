@@ -42,6 +42,9 @@ class HomeViewModel @Inject constructor(
     init {
         // Load data when ViewModel is created
         loadData()
+        
+        // Set up observer for income transactions
+        observeIncomeTransactions()
     }
     
     /**
@@ -67,6 +70,29 @@ class HomeViewModel @Inject constructor(
         
         // Refresh income value from preferences
         _monthlyIncome.value = preferenceHelper.getUserIncome()
+    }
+    
+    /**
+     * Observe income transactions to update monthly income
+     */
+    private fun observeIncomeTransactions() {
+        viewModelScope.launch {
+            // Get income transactions for the current month
+            transactionRepository.getMonthlyIncomeTransactions().collectLatest { incomeTransactions ->
+                // Calculate total from transactions and add to base income
+                var totalIncome = preferenceHelper.getUserIncome()
+                
+                // Add up all income transactions for the month
+                incomeTransactions.forEach { transaction ->
+                    if (transaction.amount > 0) {
+                        totalIncome += transaction.amount
+                    }
+                }
+                
+                // Update the income value
+                _monthlyIncome.value = totalIncome
+            }
+        }
     }
     
     /**

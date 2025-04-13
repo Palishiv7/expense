@@ -163,6 +163,37 @@ class TransactionRepositoryImpl @Inject constructor(
             }
     }
     
+    override fun getMonthlyIncomeTransactions(): Flow<List<TransactionSms>> {
+        val calendar = Calendar.getInstance()
+        val currentMonth = calendar.get(Calendar.MONTH)
+        val currentYear = calendar.get(Calendar.YEAR)
+        
+        // Set to first day of month
+        calendar.set(currentYear, currentMonth, 1, 0, 0, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        val startDate = calendar.time
+        
+        // Set to last day of month
+        calendar.set(currentYear, currentMonth, calendar.getActualMaximum(Calendar.DAY_OF_MONTH), 23, 59, 59)
+        calendar.set(Calendar.MILLISECOND, 999)
+        val endDate = calendar.time
+        
+        // Get all income transactions for the month
+        return transactionDao.getTransactionsByTypeAndDateRange(TransactionType.INCOME, startDate, endDate)
+            .map { entities ->
+                entities.map { entity ->
+                    TransactionSms(
+                        sender = entity.smsSender ?: "Manual Entry",
+                        body = entity.smsBody ?: "Income transaction",
+                        amount = entity.amount, // Income is positive
+                        merchantName = entity.merchantName,
+                        timestamp = entity.date.time,
+                        category = entity.category
+                    )
+                }
+            }
+    }
+    
     override fun getRecentTransactions(limit: Int): Flow<List<TransactionSms>> {
         return transactionDao.getRecentTransactions(limit)
             .map { entities ->

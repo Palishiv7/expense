@@ -19,6 +19,11 @@ interface TransactionRepository {
     fun getMonthlySpending(): Flow<Double>
     
     /**
+     * Get income transactions for the current month
+     */
+    fun getMonthlyIncomeTransactions(): Flow<List<TransactionSms>>
+    
+    /**
      * Get recent transactions
      */
     fun getRecentTransactions(limit: Int): Flow<List<TransactionSms>>

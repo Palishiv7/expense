@@ -45,6 +45,11 @@ class AddTransactionViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     
+    // Reset form after navigation
+    init {
+        resetStatus()
+    }
+    
     // Update amount
     fun updateAmount(newAmount: String) {
         // Only allow valid decimal numbers

@@ -51,6 +51,7 @@ fun AddTransactionScreen(
             // Small delay to show success message
             delay(500)
             navController.popBackStack()
+            viewModel.resetStatus() // Reset the status after navigation
         }
     }
     
