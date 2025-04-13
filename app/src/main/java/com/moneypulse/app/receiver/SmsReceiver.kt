@@ -252,9 +252,9 @@ class SmsReceiver : BroadcastReceiver() {
                         val transaction = parseTransactionDetails(sender, body)
                         
                         // Skip if we couldn't extract a valid amount
-                        if (transaction.amount <= 0) {
-                            Log.d(TAG, "Skipping transaction with invalid amount: ${transaction.amount}")
-                            captureLog("Skipping transaction with invalid amount: ${transaction.amount}")
+                        if (transaction.amount == 0.0) {
+                            Log.d(TAG, "Skipping transaction with zero amount")
+                            captureLog("Skipping transaction with zero amount")
                             continue
                         }
                         
