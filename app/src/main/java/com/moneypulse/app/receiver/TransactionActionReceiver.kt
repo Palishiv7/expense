@@ -33,9 +33,17 @@ class AddTransactionReceiver : BroadcastReceiver() {
             notificationManager.cancel(NotificationHelper.TRANSACTION_NOTIFICATION_ID)
             
             if (transaction != null) {
+                // Create a modified transaction that won't trigger duplicate detection:
+                // 1. Update the timestamp to now (to avoid time-based duplicate detection)
+                // 2. Mark as user-approved by setting a special sender
+                val approvedTransaction = transaction.copy(
+                    sender = "Manual Approval",  // This will bypass duplicate detection
+                    timestamp = System.currentTimeMillis()  // Fresh timestamp
+                )
+                
                 // Process in background
                 CoroutineScope(Dispatchers.IO).launch {
-                    transactionRepository.processNewTransactionSms(transaction)
+                    transactionRepository.processNewTransactionSms(approvedTransaction)
                     
                     // Show toast on the main thread
                     CoroutineScope(Dispatchers.Main).launch {

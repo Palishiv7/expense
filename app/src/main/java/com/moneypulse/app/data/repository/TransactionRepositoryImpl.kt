@@ -61,8 +61,8 @@ class TransactionRepositoryImpl @Inject constructor(
      * while still allowing legitimate repeated transactions
      */
     private suspend fun isDuplicateTransaction(newTransaction: TransactionSms): Boolean {
-        // Skip duplicate detection for manual entries - allow multiple entries
-        if (newTransaction.sender == "Manual Entry") {
+        // Skip duplicate detection for manual entries and approvals
+        if (newTransaction.sender == "Manual Entry" || newTransaction.sender == "Manual Approval") {
             return false
         }
         
