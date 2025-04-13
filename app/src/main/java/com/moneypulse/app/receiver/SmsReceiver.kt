@@ -522,10 +522,20 @@ class SmsReceiver : BroadcastReceiver() {
         // --------- PRIORITY 1: DIRECT RECIPIENT PATTERNS ---------
         
         // Pattern 1: "to [recipient]" - highest confidence pattern
-        val toPattern = Regex("to\\s+([A-Za-z0-9@_.\\s&'-]+)(?:\\s+(?:on|dt|ref|upi|not|bal|thru|\\.))", RegexOption.IGNORE_CASE)
+        // Update pattern to stop at line breaks or "On" which typically indicates a date follows
+        val toPattern = Regex("to\\s+([A-Za-z0-9@_.\\s&'-]+?)(?:\\s+(?:on|dt|ref|upi|not|bal|thru|\\.)|\n|$)", RegexOption.IGNORE_CASE)
         toPattern.find(body)?.let {
             merchantName = it.groupValues[1].trim()
             captureLog("Extracted using 'to' pattern: $merchantName")
+        }
+        
+        // More specific pattern for HDFC format which uses "To NAME" on a separate line followed by "On DATE"
+        if (merchantName.isEmpty() && body.contains("HDFC Bank", ignoreCase = true)) {
+            val hdfcPattern = Regex("To\\s+([A-Za-z0-9@_.\\s&'-]+)(?:\\s*\n|\\s+On)", RegexOption.IGNORE_CASE)
+            hdfcPattern.find(body)?.let {
+                merchantName = it.groupValues[1].trim()
+                captureLog("Extracted using HDFC-specific pattern: $merchantName")
+            }
         }
         
         // Pattern 2: "at [merchant]" for card/POS transactions
