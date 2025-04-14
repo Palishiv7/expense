@@ -524,12 +524,10 @@ class SmsReceiver : BroadcastReceiver() {
         // "Account debited ... recipient credited" - these ARE debit transactions
         // Enhanced to detect cases where "credited" doesn't have clear word boundaries
         val isDualTransactionFormat = 
-            // Contains debit-related terms
+            // Contains both debit and credit terms in any format
             body.contains(Regex("\\b(?:debited|debit)\\b", RegexOption.IGNORE_CASE)) &&
-            // AND contains credit-related terms - relaxed boundary check to catch "NAME credited"
-            (body.contains(Regex("\\b(?:credited)\\b", RegexOption.IGNORE_CASE)) || 
-             // This catches patterns like "NAME credited" or "to NAME credited"
-             body.contains(Regex("(?:[A-Z][A-Za-z\\s]+|to\\s+[A-Za-z\\s]+)\\s+credited", RegexOption.IGNORE_CASE)))
+            // Simplified pattern to catch all credit variations including "NAME credited"
+            body.contains(Regex("credited", RegexOption.IGNORE_CASE))
             
         // Log specific details for dual-mention transactions for clarity
         if (isDualTransactionFormat) {
@@ -911,7 +909,7 @@ class SmsReceiver : BroadcastReceiver() {
         val generalToPattern = Regex("(?:to|towards)\\s+($namePattern)$boundaryPatterns", RegexOption.IGNORE_CASE)
         generalToPattern.find(body)?.let {
             val candidate = it.groupValues[1].trim()
-            if (isValidMerchantCandidate(candidate, 50)) {
+            if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
                 captureLog("HIGH PRIORITY - Extracted from general To pattern: $merchantName")
                 return merchantName
@@ -922,7 +920,7 @@ class SmsReceiver : BroadcastReceiver() {
         val axisUpiPattern = Regex("UPI\\/P2A\\/\\d+\\/($namePattern)", RegexOption.IGNORE_CASE)
         axisUpiPattern.find(body)?.let {
             val candidate = it.groupValues[1].trim()
-            if (isValidMerchantCandidate(candidate)) {
+            if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
                 captureLog("HIGH PRIORITY - Extracted from Axis UPI/P2A pattern: $merchantName")
                 return merchantName
@@ -933,7 +931,7 @@ class SmsReceiver : BroadcastReceiver() {
         val iciciCreditedPattern = Regex("($namePattern)\\s+credited", RegexOption.IGNORE_CASE)
         iciciCreditedPattern.find(body)?.let {
             val candidate = it.groupValues[1].trim()
-            if (isValidMerchantCandidate(candidate)) {
+            if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
                 captureLog("HIGH PRIORITY - Extracted from ICICI credited pattern: $merchantName")
                 return merchantName
@@ -944,7 +942,7 @@ class SmsReceiver : BroadcastReceiver() {
         val generalSentToPattern = Regex("(?:sent|paid|transfer(?:red)?)\\s+(?:to|from)\\s+($namePattern)(?:\\s+(?:on|dt|via|UPI|Ref|ref)|\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
         generalSentToPattern.find(body)?.let {
             val candidate = it.groupValues[1].trim()
-            if (isValidMerchantCandidate(candidate, 40)) {
+            if (isValidMerchantCandidate(candidate, 40, body)) {
                 merchantName = candidate
                 captureLog("HIGH PRIORITY - Extracted from general sent to pattern: $merchantName")
                 return merchantName
@@ -955,7 +953,7 @@ class SmsReceiver : BroadcastReceiver() {
         val upiRefPattern = Regex("UPI(?:\\:|\\s+Ref)\\s*\\d+\\.\\s*($namePattern)", RegexOption.IGNORE_CASE)
         upiRefPattern.find(body)?.let {
             val candidate = it.groupValues[1].trim()
-            if (isValidMerchantCandidate(candidate)) {
+            if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
                 captureLog("HIGH PRIORITY - Extracted from UPI Ref pattern: $merchantName")
                 return merchantName
@@ -974,7 +972,7 @@ class SmsReceiver : BroadcastReceiver() {
                 val creditedBeforeBlockPattern = Regex("($namePattern)\\s+credited", RegexOption.IGNORE_CASE)
                 creditedBeforeBlockPattern.find(beforeBlock)?.let {
                     val candidate = it.groupValues[1].trim()
-                    if (isValidMerchantCandidate(candidate)) {
+                    if (isValidMerchantCandidate(candidate, 50, beforeBlock)) {
                         merchantName = candidate
                         captureLog("SMS BLOCK special - Found name before block: $merchantName")
                         return merchantName
@@ -985,7 +983,7 @@ class SmsReceiver : BroadcastReceiver() {
                 val toBeforeBlockPattern = Regex("to\\s+($namePattern)$boundaryPatterns", RegexOption.IGNORE_CASE)
                 toBeforeBlockPattern.find(beforeBlock)?.let {
                     val candidate = it.groupValues[1].trim()
-                    if (isValidMerchantCandidate(candidate)) {
+                    if (isValidMerchantCandidate(candidate, 50, beforeBlock)) {
                         merchantName = candidate
                         captureLog("SMS BLOCK special - Found 'to NAME' before block: $merchantName")
                         return merchantName
@@ -1005,7 +1003,7 @@ class SmsReceiver : BroadcastReceiver() {
                 val axisP2APattern = Regex("UPI\\/P2A\\/\\d+\\/($namePattern)", RegexOption.IGNORE_CASE)
                 axisP2APattern.find(beforeBlock)?.let {
                     val candidate = it.groupValues[1].trim()
-                    if (isValidMerchantCandidate(candidate)) {
+                    if (isValidMerchantCandidate(candidate, 50, beforeBlock)) {
                         merchantName = candidate
                         captureLog("SMS BLOCKUPI special - Found UPI/P2A pattern: $merchantName")
                         return merchantName
@@ -1018,7 +1016,7 @@ class SmsReceiver : BroadcastReceiver() {
                 if (matches.isNotEmpty()) {
                     // Take the last capitalized name as it's likely to be the merchant
                     val candidate = matches.last().groupValues[1].trim()
-                    if (isValidMerchantCandidate(candidate)) {
+                    if (isValidMerchantCandidate(candidate, 50, beforeBlock)) {
                         merchantName = candidate
                         captureLog("SMS BLOCKUPI special - Found capitalized name: $merchantName")
                         return merchantName
@@ -1138,7 +1136,7 @@ class SmsReceiver : BroadcastReceiver() {
                 val matchResult = pattern.find(body)
                 if (matchResult != null) {
                     val candidate = matchResult.groupValues[1].trim()
-                    if (isValidMerchantCandidate(candidate)) {
+                    if (isValidMerchantCandidate(candidate, 50, body)) {
                         captureLog("Extracted using $description: $candidate")
                         return candidate
                     }
@@ -1449,7 +1447,7 @@ class SmsReceiver : BroadcastReceiver() {
      * Helper function to validate a merchant candidate with consistent rules
      * Centralizes merchant validation logic to eliminate duplicate code
      */
-    private fun isValidMerchantCandidate(candidate: String, maxLength: Int = 50): Boolean {
+    private fun isValidMerchantCandidate(candidate: String, maxLength: Int = 50, bodyText: String = ""): Boolean {
         // Basic validation checks
         if (candidate.isEmpty()) {
             return false
@@ -1460,13 +1458,16 @@ class SmsReceiver : BroadcastReceiver() {
             return false
         }
         
-        // Check if this is after SMS BLOCK instruction
-        val blockIndex = lowerBody.indexOf("sms block")
-        if (blockIndex > -1) {
-            val candidateIndex = lowerBody.indexOf(candidate.lowercase())
-            if (candidateIndex > blockIndex) {
-                captureLog("Invalid merchant candidate '$candidate' - appears after SMS BLOCK")
-                return false
+        // Check if this is after SMS BLOCK instruction - only if bodyText is provided
+        if (bodyText.isNotEmpty()) {
+            val lowerBodyText = bodyText.lowercase()
+            val blockIndex = lowerBodyText.indexOf("sms block")
+            if (blockIndex > -1) {
+                val candidateIndex = lowerBodyText.indexOf(candidate.lowercase())
+                if (candidateIndex > blockIndex) {
+                    captureLog("Invalid merchant candidate '$candidate' - appears after SMS BLOCK")
+                    return false
+                }
             }
         }
         
