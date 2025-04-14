@@ -305,10 +305,12 @@ class SmsReceiver : BroadcastReceiver() {
                             // Automatically add the transaction to database
                             Log.d(TAG, "Auto mode: Adding transaction automatically")
                             captureLog("Auto mode: Adding transaction automatically")
+                            
+                            // Use launch to create a coroutine and call the suspend function within it
                             CoroutineScope(Dispatchers.IO).launch {
                                 try {
-                                    // Call the suspend function properly within a coroutine scope
-                                transactionRepository.processNewTransactionSms(transaction)
+                                    // This is now properly called within a coroutine context
+                                    transactionRepository.processNewTransactionSms(transaction)
                                     Log.d(TAG, "Transaction successfully processed")
                                     captureLog("Transaction successfully processed")
                                 } catch (e: Exception) {
@@ -760,7 +762,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // Enhanced merchant detection with comprehensive pattern matching
-        val merchant = extractMerchantName(body)
+        val merchant = extractMerchantName(sender, body)
         
         // Create and return the transaction object
         return TransactionSms(
@@ -776,7 +778,7 @@ class SmsReceiver : BroadcastReceiver() {
      * Enhanced merchant name extraction with comprehensive pattern matching
      * Handles various transaction formats including merchants, person-to-person, and edge cases
      */
-    private fun extractMerchantName(body: String): String {
+    private fun extractMerchantName(sender: String, body: String): String {
         var merchantName = ""
         val lowerBody = body.lowercase()
         
@@ -1129,7 +1131,10 @@ class SmsReceiver : BroadcastReceiver() {
             if (merchantName.isEmpty()) {
                 val paymentKeywords = listOf("sent", "paid", "debited", "payment", "transfer", "spent", "transferred")
                 
+                var found = false
                 for (keyword in paymentKeywords) {
+                    if (found) continue
+                    
                     if (lowerBody.contains(keyword)) {
                         // Look for words starting with capital letter after the keyword
                         val keywordIndex = lowerBody.indexOf(keyword)
@@ -1140,17 +1145,17 @@ class SmsReceiver : BroadcastReceiver() {
                             
                             // Look for capitalized words of reasonable length
                             val capitalizedPattern = Regex("\\b([A-Z][A-Za-z0-9'\\.-]{2,}(?:\\s+[A-Za-z0-9'\\.-]+){0,3})\\b")
-                        val match = capitalizedPattern.find(afterKeyword)
+                            val match = capitalizedPattern.find(afterKeyword)
                             
-                        if (match != null) {
+                            if (match != null) {
                                 val candidate = match.groupValues[1].trim()
                                 // Filter out common non-merchant words
                                 if (!candidate.matches(Regex("(?:Rs|INR|USD|On|At|From|To|Info)", RegexOption.IGNORE_CASE))) {
                                     merchantName = candidate
-                            captureLog("Extracted capitalized word after '$keyword': $merchantName")
-                                    break
-                        }
-                    }
+                                    captureLog("Extracted capitalized word after '$keyword': $merchantName")
+                                    found = true
+                                }
+                            }
                         }
                     }
                 }
