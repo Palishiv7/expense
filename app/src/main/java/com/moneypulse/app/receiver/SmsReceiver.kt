@@ -804,9 +804,6 @@ class SmsReceiver : BroadcastReceiver() {
         // Enhanced merchant detection with comprehensive pattern matching
         val merchant = extractMerchantName(sender, body)
         
-        // Extract transaction reference for duplicate detection
-        val referenceNumber = extractReferenceNumber(body)
-        
         // Create and return the transaction object
         return TransactionSms(
             sender = sender,
