@@ -918,7 +918,7 @@ class SmsReceiver : BroadcastReceiver() {
             if (candidate.isNotEmpty() && 
                 !candidate.all { c -> c.isDigit() } && 
                 !candidate.contains("SMS", ignoreCase = true) &&
-                !candidate.length > 30) {
+                candidate.length <= 30) { // Fixed the condition to check if length is less than or equal to 30
                 merchantName = candidate
                 captureLog("HIGH PRIORITY - Extracted from general sent to pattern: $merchantName")
                 return merchantName
