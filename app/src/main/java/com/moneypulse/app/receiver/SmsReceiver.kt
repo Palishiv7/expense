@@ -1292,6 +1292,34 @@ class SmsReceiver : BroadcastReceiver() {
             }
         }
         
+        // Check for known businesses first - if it's a known business, use standard format
+        for (merchant in KNOWN_MERCHANTS) {
+            if (name.contains(merchant, ignoreCase = true)) {
+                return merchant.replaceFirstChar { it.uppercase() }
+            }
+        }
+        
+        // Detect if this might be a person name rather than a business
+        val isProbablyPerson = !name.contains(
+            Regex("\\b(?:ltd|limited|pvt|private|services|systems|corporation|solutions|technologies|store|shop|mall|center)\\b", 
+            RegexOption.IGNORE_CASE)
+        )
+        
+        // For person names, preserve more of the original format
+        if (isProbablyPerson) {
+            // For person names, keep full name but apply proper capitalization
+            return name.split(" ").joinToString(" ") { word ->
+                when {
+                    // Single letter (like initial) - keep as uppercase
+                    word.length == 1 -> word.uppercase()
+                    
+                    // Normal words - capitalize first letter
+                    else -> word.replaceFirstChar { it.uppercase() }.substring(0, 1) + 
+                           (if (word.length > 1) word.substring(1).lowercase() else "")
+                }
+            }
+        }
+        
         // Initialize with the original name
         var cleanName = name
         
@@ -1378,7 +1406,7 @@ class SmsReceiver : BroadcastReceiver() {
                     else -> ""
                 }
             }
-                } else {
+        } else {
             // Fix inconsistent capitalization for existing mixed-case words
             // This improves names that have random capitalization patterns
             cleanName = cleanName.split(" ").joinToString(" ") { word ->
