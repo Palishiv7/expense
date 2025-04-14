@@ -871,6 +871,133 @@ class SmsReceiver : BroadcastReceiver() {
         var merchantName = ""
         val lowerBody = body.lowercase()
         
+        // HIGH PRIORITY: Extract name from most reliable patterns first - these are almost always accurate
+        
+        // 1. General "To [NAME]" pattern (highest priority for most banks)
+        val generalToPattern = Regex("To\\s+([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+(?:On|on|dt|UPI|Ref|ref)|\\s*\\n|\\s*$)", RegexOption.IGNORE_CASE)
+        generalToPattern.find(body)?.let {
+            val candidate = it.groupValues[1].trim()
+            if (candidate.isNotEmpty() && 
+                !candidate.all { c -> c.isDigit() } && 
+                !candidate.contains("SMS", ignoreCase = true) &&
+                !candidate.contains("BLOCK", ignoreCase = true) &&
+                !candidate.contains(Regex("\\b(?:a/c|account)\\b", RegexOption.IGNORE_CASE)) &&
+                !isLikelyNotMerchant(candidate)) {
+                merchantName = candidate
+                captureLog("HIGH PRIORITY - Extracted from general To pattern: $merchantName")
+                return merchantName
+            }
+        }
+        
+        // 2. Axis Bank UPI/P2A pattern (highest priority)
+        val axisUpiPattern = Regex("UPI\\/P2A\\/\\d+\\/([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})", RegexOption.IGNORE_CASE)
+        axisUpiPattern.find(body)?.let {
+            val candidate = it.groupValues[1].trim()
+            if (candidate.isNotEmpty() && !candidate.all { c -> c.isDigit() }) {
+                merchantName = candidate
+                captureLog("HIGH PRIORITY - Extracted from Axis UPI/P2A pattern: $merchantName")
+                return merchantName
+            }
+        }
+        
+        // 3. ICICI Bank "[NAME] credited" pattern (highest priority)
+        val iciciCreditedPattern = Regex("([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
+        iciciCreditedPattern.find(body)?.let {
+            val candidate = it.groupValues[1].trim()
+            if (candidate.isNotEmpty() && !candidate.all { c -> c.isDigit() }) {
+                merchantName = candidate
+                captureLog("HIGH PRIORITY - Extracted from ICICI credited pattern: $merchantName")
+                return merchantName
+            }
+        }
+        
+        // 4. General "sent to/paid to [NAME]" pattern (works across many banks)
+        val generalSentToPattern = Regex("(?:sent|paid|transfer(?:red)?)\\s+(?:to|from)\\s+([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+(?:on|dt|via|UPI|Ref|ref)|\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
+        generalSentToPattern.find(body)?.let {
+            val candidate = it.groupValues[1].trim()
+            if (candidate.isNotEmpty() && 
+                !candidate.all { c -> c.isDigit() } && 
+                !candidate.contains("SMS", ignoreCase = true) &&
+                !candidate.length > 30) {
+                merchantName = candidate
+                captureLog("HIGH PRIORITY - Extracted from general sent to pattern: $merchantName")
+                return merchantName
+            }
+        }
+        
+        // 5. Common UPI reference format (works for many UPI transactions)
+        val upiRefPattern = Regex("UPI(?:\\:|\\s+Ref)\\s*\\d+\\.\\s*([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})", RegexOption.IGNORE_CASE)
+        upiRefPattern.find(body)?.let {
+            val candidate = it.groupValues[1].trim()
+            if (candidate.isNotEmpty() && !candidate.all { c -> c.isDigit() }) {
+                merchantName = candidate
+                captureLog("HIGH PRIORITY - Extracted from UPI Ref pattern: $merchantName")
+                return merchantName
+            }
+        }
+        
+        // 6. Special handling for SMS BLOCK patterns - extract from text before the block instruction
+        if (body.contains(Regex("SMS\\s+BLOCK", RegexOption.IGNORE_CASE))) {
+            // Find text before the SMS BLOCK instruction
+            val blockIndex = lowerBody.indexOf("sms block")
+            if (blockIndex > 20) { // Ensure there's enough text before the SMS BLOCK
+                val beforeBlock = body.substring(0, blockIndex)
+                
+                // Try to find a name pattern in the text before SMS BLOCK
+                // First look for a pattern like "NAME credited"
+                val creditedBeforeBlockPattern = Regex("([A-Z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
+                creditedBeforeBlockPattern.find(beforeBlock)?.let {
+                    val candidate = it.groupValues[1].trim()
+                    if (candidate.isNotEmpty() && !candidate.contains(Regex("\\d{5,}"))) {
+                        merchantName = candidate
+                        captureLog("SMS BLOCK special - Found name before block: $merchantName")
+                        return merchantName
+                    }
+                }
+                
+                // Then try to find a "to NAME" pattern
+                val toBeforeBlockPattern = Regex("to\\s+([A-Z][A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+|\\.|,|;|\\n|$)", RegexOption.IGNORE_CASE)
+                toBeforeBlockPattern.find(beforeBlock)?.let {
+                    val candidate = it.groupValues[1].trim()
+                    if (candidate.isNotEmpty() && candidate.length >= 2 && !candidate.contains(Regex("\\d{5,}"))) {
+                        merchantName = candidate
+                        captureLog("SMS BLOCK special - Found 'to NAME' before block: $merchantName")
+                        return merchantName
+                    }
+                }
+            }
+        }
+        
+        // 7. Special handling for SMS BLOCKUPI patterns (specific to Axis Bank)
+        if (body.contains(Regex("SMS\\s+BLOCKUPI", RegexOption.IGNORE_CASE))) {
+            // Find text before the SMS BLOCKUPI instruction
+            val blockIndex = lowerBody.indexOf("sms blockupi")
+            if (blockIndex > 20) { // Ensure there's enough text before the SMS BLOCKUPI
+                val beforeBlock = body.substring(0, blockIndex)
+                
+                // First try to find UPI/P2A pattern which is very reliable
+                val axisP2APattern = Regex("UPI\\/P2A\\/\\d+\\/([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})", RegexOption.IGNORE_CASE)
+                axisP2APattern.find(beforeBlock)?.let {
+                    val candidate = it.groupValues[1].trim()
+                    if (candidate.isNotEmpty() && !candidate.contains(Regex("\\d{5,}"))) {
+                        merchantName = candidate
+                        captureLog("SMS BLOCKUPI special - Found UPI/P2A pattern: $merchantName")
+                        return merchantName
+                    }
+                }
+                
+                // Try to find any capitalized name pattern as fallback
+                val capitalizedNamePattern = Regex("\\b([A-Z][a-z]{2,}(?:\\s+[A-Z][a-z]+){0,3})\\b")
+                val matches = capitalizedNamePattern.findAll(beforeBlock).toList()
+                if (matches.isNotEmpty()) {
+                    // Take the last capitalized name as it's likely to be the merchant
+                    merchantName = matches.last().groupValues[1].trim()
+                    captureLog("SMS BLOCKUPI special - Found capitalized name: $merchantName")
+                    return merchantName
+                }
+            }
+        }
+        
         // First check for known merchants - prioritize exact matches, then partial
         // Enhanced with boundary checking for more accurate detection
         for (merchant in KNOWN_MERCHANTS) {
@@ -901,6 +1028,8 @@ class SmsReceiver : BroadcastReceiver() {
                 "HDFC" to listOf(
                     // HDFC common format with "To NAME" on a separate line
                     Regex("To\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s*\\n+\\s*On|\\s+On|\\s+Info)", RegexOption.IGNORE_CASE),
+                    // HDFC sent to format
+                    Regex("(?:Sent|sent)\\s+(?:Rs\\.?|INR|₹)?\\s*[\\d,.]+\\s+(?:from|From)\\s+[A-Za-z0-9\\s&'\\.-]+\\s+(?:to|To)\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s+(?:on|On|dt|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", RegexOption.IGNORE_CASE),
                     // HDFC UPI format
                     Regex("(?:sent to|paid to|UPI-|UPI:|UPI>)\\s*([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|-|$|\\n)", RegexOption.IGNORE_CASE)
                 ),
@@ -911,37 +1040,78 @@ class SmsReceiver : BroadcastReceiver() {
                     Regex("(?:paid|sent)\\s+to\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
                     Regex("(?:to|towards)\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s+(?:on|dt|upi|a/c)|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
                     // SBI credit card format
-                    Regex("(?:purchase|payment) at\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
+                    Regex("(?:purchase|payment) at\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
+                    // SBI IMPS format
+                    Regex("IMPS/P2A/([A-Za-z0-9@_.\\s&'\\-]+?)/", RegexOption.IGNORE_CASE)
                 ),
                 
                 // ICICI Bank patterns
                 "ICICI" to listOf(
+                    // ICICI new format with "credited" pattern (highest priority) - moved to the top
+                    Regex("([A-Za-z0-9@_.\\s&'\\-]{2,50})\\s+credited", RegexOption.IGNORE_CASE),
                     // ICICI common format
                     Regex("transferred to\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
-                    // ICICI new format with "credited" pattern (high priority)
-                    Regex("([A-Za-z0-9@_.\\s&'\\-]+?)\\s+credited", RegexOption.IGNORE_CASE),
+                    // ICICI "to NAME" pattern
+                    Regex("to\\s+([A-Za-z0-9@_.\\s&'\\-]{2,50})(?:\\s|\\.\\s|,\\s|;\\s|\\n|$)", RegexOption.IGNORE_CASE),
                     // ICICI UPI format
-                    Regex("UPI-([A-Za-z0-9@_.\\s&'\\-]+?)(?:-|\\s|$)", RegexOption.IGNORE_CASE),
+                    Regex("UPI[-:]([A-Za-z0-9@_.\\s&'\\-]+?)(?:-|\\s|\\.|,|$)", RegexOption.IGNORE_CASE),
                     // ICICI VPA format
                     Regex("VPA-([A-Za-z0-9@_.\\s&'\\-]+?)(?:-|\\s|$)", RegexOption.IGNORE_CASE)
                 ),
                 
                 // Axis Bank patterns
                 "AXIS" to listOf(
-                    Regex("(?:sent to|paid to|UPI/)\\s*([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
-                    Regex("(?:purchase|payment) at\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
+                    // Axis UPI/P2A format (highest priority)
+                    Regex("UPI\\/P2A\\/\\d+\\/([A-Za-z][A-Za-z0-9@_.\\s&'\\-]{2,50})", RegexOption.IGNORE_CASE),
+                    // Axis to/towards format
+                    Regex("(?:to|towards)\\s+([A-Za-z0-9@_.\\s&'\\-]{2,50})(?:\\s|\\.\\s|,\\s|;\\s|\\n|$)", RegexOption.IGNORE_CASE),
+                    // Axis sent to/paid to format
+                    Regex("(?:sent to|paid to)\\s*([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
+                    // Axis purchase/payment at format
+                    Regex("(?:purchase|payment) at\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
+                    // General UPI format (fallback)
+                    Regex("UPI[:\\/]([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|-|$)", RegexOption.IGNORE_CASE)
                 ),
                 
                 // Kotak Bank patterns
                 "KOTAK" to listOf(
+                    // Kotak sent to format
+                    Regex("Sent\\s+(?:Rs\\.?|INR|₹)?\\s*[\\d,.]+\\s+from\\s+Kotak\\s+Bank\\s+AC\\s+.+\\s+to\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s+(?:on|dt|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", RegexOption.IGNORE_CASE),
                     Regex("(?:paid|transfer) to\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
                     Regex("UPI-([A-Za-z0-9@_.\\s&'\\-]+?)(?:-|\\s|$)", RegexOption.IGNORE_CASE)
+                ),
+                
+                // Indian Bank patterns
+                "INDIAN" to listOf(
+                    // Indian Bank debited to pattern
+                    Regex("debited\\s+(?:Rs\\.?|INR|₹)?\\s*[\\d,.]+\\s+(?:on|dt)?\\s+[\\d\\-/]+\\s+to\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.\\s|,\\s|;\\s|\\n|\\.\\.|$)", RegexOption.IGNORE_CASE)
+                ),
+                
+                // Yes Bank patterns
+                "YES" to listOf(
+                    // Yes Bank formats
+                    Regex("(?:sent|paid|transferred|debited)\\s+(?:to|towards)\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
+                    Regex("UPI[-:\\/]([A-Za-z0-9@_.\\s&'\\-]+?)(?:-|\\s|$)", RegexOption.IGNORE_CASE)
+                ),
+                
+                // Bank of Baroda patterns
+                "BOB" to listOf(
+                    // BoB sent to format
+                    Regex("(?:sent|paid|transferred|debited)\\s+(?:to|towards)\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
+                    // BoB UPI format
+                    Regex("UPI/([A-Za-z0-9@_.\\s&'\\-]+?)(?:/|\\s|$)", RegexOption.IGNORE_CASE)
+                ),
+                
+                // PNB Bank patterns
+                "PNB" to listOf(
+                    // PNB sent to format
+                    Regex("(?:sent|paid|transferred|debited)\\s+(?:to|towards)\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
                 )
             )
             
             // Detect which bank's SMS this is
             var detectedBank = ""
-            for (bank in listOf("HDFC", "SBI", "ICICI", "AXIS", "KOTAK")) {
+            for (bank in listOf("HDFC", "SBI", "ICICI", "AXIS", "KOTAK", "INDIAN", "YES", "BOB", "PNB")) {
                 if (sender.contains(bank, ignoreCase = true) || body.contains(bank, ignoreCase = true)) {
                     detectedBank = bank
                     break
@@ -1164,10 +1334,20 @@ class SmsReceiver : BroadcastReceiver() {
                         merchantName = matchedMerchant.replaceFirstChar { it.uppercase() }
                         captureLog("Matched known merchant in UPI ID: $merchantName (from $userName@$provider)")
                     } 
-                    // Format personal UPI IDs nicely
+                    // Format personal UPI IDs nicely - Enhanced to extract just the name
                     else {
-                        // Format as "Username (UPI)" if username seems meaningful
-                        merchantName = if (userName.length > 2 && !userName.matches(Regex("\\d+"))) {
+                        // Extract just the person's name from the UPI ID if possible
+                        // First try to extract alphabetic-only prefix from username (likely a person's name)
+                        val namePattern = Regex("^([a-zA-Z]+)(?:\\d|[._-])")
+                        val nameMatch = namePattern.find(userName)
+                        
+                        merchantName = if (nameMatch != null) {
+                            // Found a name pattern (like "shivam" in "shivam22000")
+                            val name = nameMatch.groupValues[1]
+                            // Convert to uppercase for consistent display
+                            name.uppercase()
+                        } else if (userName.length > 2 && !userName.matches(Regex("\\d+"))) {
+                            // Fallback to previous logic for non-numeric usernames without clear name pattern
                             // Break by common separators and format
                             userName.split(".", "_", "-").joinToString(" ") { word ->
                                 if (word.length > 1) word.replaceFirstChar { it.uppercase() } else word.uppercase()
@@ -1176,7 +1356,7 @@ class SmsReceiver : BroadcastReceiver() {
                             // Keep full UPI ID if username is too short or numeric
                             "$userName@$provider"
                         }
-                        captureLog("Formatted UPI ID: $merchantName")
+                        captureLog("Formatted UPI ID as name: $merchantName")
                     }
                 }
             }
@@ -1284,7 +1464,7 @@ class SmsReceiver : BroadcastReceiver() {
             
             // Fallback 2: Extract after "via" keyword (mobile banking, payment services)
             if (merchantName.isEmpty() && (lowerBody.contains(" via ") || lowerBody.contains(" using "))) {
-                val viaPattern = Regex("(?:via|using)\\s+([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s|\\.|,|;|\\n|$)", RegexOption.IGNORE_CASE)
+                val viaPattern = Regex("(?:via|using)\\s+([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s|\\.|,|;\\n|$)", RegexOption.IGNORE_CASE)
                 viaPattern.find(body)?.let {
                     val candidate = it.groupValues[1].trim()
                     // Don't use generic terms
@@ -1383,6 +1563,18 @@ class SmsReceiver : BroadcastReceiver() {
             }
         }
         
+        // Filter out SMS BLOCK related text if it somehow got included
+        if (name.contains("SMS BLOCK", ignoreCase = true) || name.contains("BLOCKUPI", ignoreCase = true)) {
+            // Extract the part before SMS BLOCK
+            val blockIndex = name.indexOf("SMS", ignoreCase = true)
+            if (blockIndex > 2) {
+                val cleanedName = name.substring(0, blockIndex).trim()
+                if (cleanedName.length >= 3) {
+                    return cleanupMerchantName(cleanedName) // Recursively clean the filtered name
+                }
+            }
+        }
+        
         // Special handling for account numbers
         val accountPattern = Regex("(?:a/c|account|ac)\\s*(?:no\\.?)?\\s*(?:x+|\\*+)?(\\d+)", RegexOption.IGNORE_CASE)
         accountPattern.find(name)?.let {
@@ -1467,8 +1659,11 @@ class SmsReceiver : BroadcastReceiver() {
             // Payment method noise
             "\\b(?:ecom|ecom-|pos\\s|pos-|via|using|through)\\b",
             
-            // Common senders
-            "\\b(?:hdfc|sbi|icici|axis|kotak)\\b"
+            // Common senders and SMS block-related terms
+            "\\b(?:hdfc|sbi|icici|axis|kotak|sms|block|cust|id|call|dial)\\b",
+            
+            // Phone numbers and instruction text
+            "\\b\\d{10,}\\b", "\\b\\d{5,}\\s+to\\s+\\d{5,}\\b"
         )
         
         // Apply each noise pattern with case insensitivity
@@ -1557,5 +1752,68 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         return cleanName
+    }
+    
+    /**
+     * Helper function to determine if a candidate merchant name is likely not a valid merchant
+     * Filters out common false positives and noise
+     */
+    private fun isLikelyNotMerchant(candidate: String): Boolean {
+        val lowerCandidate = candidate.lowercase()
+        
+        // Check for common non-merchant terms
+        val nonMerchantTerms = listOf(
+            "account", "customer", "block", "sms", "cust id", "call", "your a/c", 
+            "this is", "dial", "reference", "ref", "txn", "transaction", 
+            "statement", "for", "net banking", "upi ref", "to a/c", "a/c no", 
+            "account no", "balance", "bal", "not you", "msg", "banking", "info",
+            "dispute", "complaint", "query", "detail", "amount", "acct", "help",
+            "upi id", "vpa", "on", "dt", "please", "as per", "request", "www",
+            "http", "avl bal", "password", "phone", "mobile", "email", "sms",
+            "code", "otp", "verify", "confirmation", "ticket", "application"
+        )
+        
+        // Check if candidate contains any non-merchant term as a complete word
+        for (term in nonMerchantTerms) {
+            val termPattern = Regex("\\b$term\\b", RegexOption.IGNORE_CASE)
+            if (termPattern.containsMatchIn(lowerCandidate)) {
+                captureLog("Rejected merchant candidate '$candidate' - contains non-merchant term '$term'")
+                return true
+            }
+        }
+        
+        // Check if candidate contains too many numbers (likely a reference number)
+        val digitCount = candidate.count { it.isDigit() }
+        if (digitCount > candidate.length * 0.4 || digitCount >= 5) {
+            captureLog("Rejected merchant candidate '$candidate' - too many digits")
+            return true
+        }
+        
+        // Check if candidate is too long to be a reasonable merchant name
+        if (candidate.length > 40) {
+            captureLog("Rejected merchant candidate '$candidate' - too long")
+            return true
+        }
+        
+        // Check if candidate is too short to be a reasonable merchant name
+        if (candidate.length < 3) {
+            captureLog("Rejected merchant candidate '$candidate' - too short")
+            return true
+        }
+        
+        // Check if candidate has no letters (likely just numbers or symbols)
+        if (!candidate.any { it.isLetter() }) {
+            captureLog("Rejected merchant candidate '$candidate' - no letters")
+            return true
+        }
+        
+        // Check if candidate looks like a phone number
+        if (candidate.matches(Regex("\\d{3,}\\s*to\\s*\\d{3,}"))) {
+            captureLog("Rejected merchant candidate '$candidate' - looks like phone number instruction")
+            return true
+        }
+        
+        // This is probably a valid merchant
+        return false
     }
 } 
