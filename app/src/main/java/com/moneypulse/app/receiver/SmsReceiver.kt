@@ -57,6 +57,33 @@ class SmsReceiver : BroadcastReceiver() {
             }
         }
         
+        // Store transaction references for duplicate detection
+        // Key: Reference ID, Value: Timestamp when it was processed
+        private val processedTransactions = mutableMapOf<String, Long>()
+        
+        // Cleanup old transaction references (older than 30 minutes)
+        private fun cleanupOldTransactions() {
+            val cutoffTime = System.currentTimeMillis() - (30 * 60 * 1000) // 30 minutes ago
+            val oldKeys = processedTransactions.entries
+                .filter { it.value < cutoffTime }
+                .map { it.key }
+            
+            for (key in oldKeys) {
+                processedTransactions.remove(key)
+            }
+        }
+        
+        // Check if a transaction with the given reference has been processed recently
+        fun isRecentDuplicate(referenceId: String): Boolean {
+            cleanupOldTransactions() // First cleanup old entries
+            return processedTransactions.containsKey(referenceId)
+        }
+        
+        // Mark a transaction as processed
+        fun markTransactionProcessed(referenceId: String) {
+            processedTransactions[referenceId] = System.currentTimeMillis()
+        }
+        
         // Comprehensive list of official bank sender IDs - focus only on official banks
         private val BANK_SENDERS = listOf(
             // Major Private Banks
@@ -295,6 +322,19 @@ class SmsReceiver : BroadcastReceiver() {
                             captureLog("Skipping transaction with zero amount")
                             continue
                         }
+                        
+                        // Extract reference ID for duplicate detection
+                        val referenceId = extractReferenceNumber(sanitizedBody)
+                        
+                        // Check if this is a duplicate transaction we've seen recently
+                        if (isRecentDuplicate(referenceId)) {
+                            Log.d(TAG, "Skipping duplicate transaction with reference: $referenceId")
+                            captureLog("Skipping duplicate transaction: ${transaction.merchantName}, amount: [MASKED]")
+                            continue
+                        }
+                        
+                        // Mark this transaction as processed to avoid duplicates
+                        markTransactionProcessed(referenceId)
                         
                         // Log the extracted details - mask merchant name for privacy
                         Log.d(TAG, "Extracted: ${transaction.merchantName}, Amount: [MASKED]")
@@ -773,8 +813,7 @@ class SmsReceiver : BroadcastReceiver() {
             body = body,
             amount = amount,
             merchantName = merchant,
-            timestamp = System.currentTimeMillis(),
-            referenceId = referenceNumber
+            timestamp = System.currentTimeMillis()
         )
     }
     
