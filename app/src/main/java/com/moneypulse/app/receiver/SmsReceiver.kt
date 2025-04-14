@@ -306,7 +306,16 @@ class SmsReceiver : BroadcastReceiver() {
                             Log.d(TAG, "Auto mode: Adding transaction automatically")
                             captureLog("Auto mode: Adding transaction automatically")
                             CoroutineScope(Dispatchers.IO).launch {
+                                try {
+                                    // Call the suspend function properly within a coroutine scope
                                 transactionRepository.processNewTransactionSms(transaction)
+                                    Log.d(TAG, "Transaction successfully processed")
+                                    captureLog("Transaction successfully processed")
+                                } catch (e: Exception) {
+                                    // Log any errors that occur during processing
+                                    Log.e(TAG, "Error in coroutine when processing transaction: ${e.javaClass.simpleName}")
+                                    captureLog("Error in coroutine: ${e.javaClass.simpleName}")
+                                }
                             }
                         } else {
                             // Show notification for manual review
@@ -600,7 +609,7 @@ class SmsReceiver : BroadcastReceiver() {
         // Log rejection for messages that don't match any patterns
         Log.d(TAG, "SMS rejected: No definitive transaction indicators found")
         captureLog("SMS rejected: No definitive transaction indicators found")
-        return false
+            return false
     }
     
     /**
@@ -907,8 +916,8 @@ class SmsReceiver : BroadcastReceiver() {
                             !candidate.matches(Regex("\\d+", RegexOption.IGNORE_CASE))) {
                             
                             merchantName = candidate
-                            captureLog("Extracted using recipient pattern: $merchantName")
-                            return@let
+                        captureLog("Extracted using recipient pattern: $merchantName")
+                        return@let
                         }
                     }
                 }
@@ -934,13 +943,17 @@ class SmsReceiver : BroadcastReceiver() {
                           RegexOption.IGNORE_CASE)
                 )
                 
+                // Iterate until we find a match or exhaust all patterns
+                var found = false
                 for (pattern in atPatterns) {
+                    if (found) continue
+                    
                     pattern.find(body)?.let {
                         val candidate = it.groupValues[1].trim()
                         if (candidate.isNotEmpty() && candidate.length >= 2 && candidate.length <= 50) {
                             merchantName = candidate
                             captureLog("Extracted using 'at/card' pattern: $merchantName")
-                            break
+                            found = true
                         }
                     }
                 }
@@ -965,13 +978,17 @@ class SmsReceiver : BroadcastReceiver() {
                           RegexOption.IGNORE_CASE)
                 )
                 
+                // Iterate until we find a match or exhaust all patterns
+                var found = false
                 for (pattern in forPatterns) {
+                    if (found) continue
+                    
                     pattern.find(body)?.let {
                         val candidate = it.groupValues[1].trim()
                         if (candidate.isNotEmpty() && candidate.length >= 2 && candidate.length <= 50) {
                             merchantName = candidate
                             captureLog("Extracted using 'for/bill' pattern: $merchantName")
-                            break
+                            found = true
                         }
                     }
                 }
@@ -1025,7 +1042,7 @@ class SmsReceiver : BroadcastReceiver() {
                     
                     // Prefer display name if it's meaningful
                     if (displayName.length > 2 && !displayName.matches(Regex("\\d+"))) {
-                        merchantName = displayName.capitalize()
+                        merchantName = displayName.replaceFirstChar { it.uppercase() }
                         captureLog("Extracted from named UPI pattern: $merchantName (UPI: $userName@$provider)")
                     } else {
                         // Fallback to formatted UPI ID
@@ -1042,7 +1059,7 @@ class SmsReceiver : BroadcastReceiver() {
                     if (userName.contains(Regex("rent|bill|recharge|fee|payment|loan|service|order", RegexOption.IGNORE_CASE))) {
                         // Purpose-based UPI, format as title
                         merchantName = userName.split(".", "_", "-").joinToString(" ") { word ->
-                            if (word.length > 1) word.capitalize() else word.uppercase()
+                            if (word.length > 1) word.replaceFirstChar { it.uppercase() } else word.uppercase()
                         }
                         captureLog("Extracted purpose from UPI ID: $merchantName")
                     } 
@@ -1051,7 +1068,7 @@ class SmsReceiver : BroadcastReceiver() {
                         val matchedMerchant = KNOWN_MERCHANTS.first { merchant -> 
                             userName.contains(merchant, ignoreCase = true) 
                         }
-                        merchantName = matchedMerchant.capitalize()
+                        merchantName = matchedMerchant.replaceFirstChar { it.uppercase() }
                         captureLog("Matched known merchant in UPI ID: $merchantName (from $userName@$provider)")
                     } 
                     // Format personal UPI IDs nicely
@@ -1060,7 +1077,7 @@ class SmsReceiver : BroadcastReceiver() {
                         merchantName = if (userName.length > 2 && !userName.matches(Regex("\\d+"))) {
                             // Break by common separators and format
                             userName.split(".", "_", "-").joinToString(" ") { word ->
-                                if (word.length > 1) word.capitalize() else word.uppercase()
+                                if (word.length > 1) word.replaceFirstChar { it.uppercase() } else word.uppercase()
                             } + " (UPI)"
                         } else {
                             // Keep full UPI ID if username is too short or numeric
@@ -1123,17 +1140,17 @@ class SmsReceiver : BroadcastReceiver() {
                             
                             // Look for capitalized words of reasonable length
                             val capitalizedPattern = Regex("\\b([A-Z][A-Za-z0-9'\\.-]{2,}(?:\\s+[A-Za-z0-9'\\.-]+){0,3})\\b")
-                            val match = capitalizedPattern.find(afterKeyword)
+                        val match = capitalizedPattern.find(afterKeyword)
                             
-                            if (match != null) {
+                        if (match != null) {
                                 val candidate = match.groupValues[1].trim()
                                 // Filter out common non-merchant words
                                 if (!candidate.matches(Regex("(?:Rs|INR|USD|On|At|From|To|Info)", RegexOption.IGNORE_CASE))) {
                                     merchantName = candidate
-                                    captureLog("Extracted capitalized word after '$keyword': $merchantName")
+                            captureLog("Extracted capitalized word after '$keyword': $merchantName")
                                     break
-                                }
-                            }
+                        }
+                    }
                         }
                     }
                 }
@@ -1326,7 +1343,7 @@ class SmsReceiver : BroadcastReceiver() {
             
             return if (firstWord != null && firstWord.length >= 2) {
                 // Capitalize the first word if available
-                firstWord.capitalize()
+                firstWord.replaceFirstChar { it.uppercase() }
             } else if (name.length >= 3) {
                 // Use original name if it's reasonably sized
                 name.trim()
@@ -1356,7 +1373,7 @@ class SmsReceiver : BroadcastReceiver() {
                     else -> ""
                 }
             }
-        } else {
+                } else {
             // Fix inconsistent capitalization for existing mixed-case words
             // This improves names that have random capitalization patterns
             cleanName = cleanName.split(" ").joinToString(" ") { word ->
