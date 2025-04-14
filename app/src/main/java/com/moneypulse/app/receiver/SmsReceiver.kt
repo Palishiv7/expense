@@ -893,7 +893,20 @@ class SmsReceiver : BroadcastReceiver() {
         val axisUpiPattern = Regex("UPI\\/P2A\\/\\d+\\/([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})", RegexOption.IGNORE_CASE)
         axisUpiPattern.find(body)?.let {
             val candidate = it.groupValues[1].trim()
-            if (candidate.isNotEmpty() && !candidate.all { c -> c.isDigit() }) {
+            
+            // Skip if the match is part of SMS BLOCKUPI instructions
+            val blockIndex = lowerBody.indexOf("sms blockupi")
+            if (blockIndex > -1) {
+                val matchStart = it.range.first
+                if (matchStart > blockIndex) {
+                    captureLog("Skipping UPI/P2A candidate after SMS BLOCKUPI: $candidate")
+                    return@let
+                }
+            }
+            
+            if (candidate.isNotEmpty() && 
+                !candidate.all { c -> c.isDigit() } && 
+                !isLikelyNotMerchant(candidate)) {
                 merchantName = candidate
                 captureLog("HIGH PRIORITY - Extracted from Axis UPI/P2A pattern: $merchantName")
                 return merchantName
@@ -1125,10 +1138,31 @@ class SmsReceiver : BroadcastReceiver() {
                     pattern.find(body)?.let {
                         // Ensure we got a non-empty, reasonably-sized capture
                         val candidate = it.groupValues[1].trim()
-                        if (candidate.isNotEmpty() && candidate.length >= 2 && candidate.length <= 50) {
+                        
+                        // Skip if the match is part of SMS BLOCK instructions
+                        val blockIndex = body.indexOf("SMS BLOCK", ignoreCase = true)
+                        if (blockIndex > -1) {
+                            val matchStart = it.range.first
+                            if (matchStart > blockIndex) {
+                                captureLog("Skipping candidate after SMS BLOCK: $candidate")
+                                return@let
+                            }
+                        }
+                        
+                        // Skip if candidate is likely a phone number
+                        if (candidate.matches(Regex("\\d{5,}")) || 
+                            candidate.matches(Regex(".*\\b\\d{10}\\b.*"))) {
+                            captureLog("Skipping likely phone number: $candidate")
+                            return@let
+                        }
+                        
+                        if (candidate.isNotEmpty() && 
+                            candidate.length >= 2 && 
+                            candidate.length <= 50 && 
+                            !isLikelyNotMerchant(candidate)) {
                             merchantName = candidate
                             captureLog("Extracted using $detectedBank bank pattern: $merchantName")
-                            return@let
+                            return merchantName  // Return immediately after finding valid merchant
                         }
                     }
                 }
