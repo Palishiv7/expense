@@ -60,6 +60,44 @@ class TransactionRepositoryImpl @Inject constructor(
     }
     
     /**
+     * Extracts transaction reference/ID from SMS text if available
+     */
+    private fun extractTransactionReference(smsBody: String): String {
+        // Try to extract transaction reference/ID using regex patterns
+        val refPatterns = listOf(
+            // Standalone "Ref NUMBER" format (common in HDFC and other banks)
+            Regex("\\b(?:Ref|REF|ref)\\s+(\\d+)\\b", RegexOption.IGNORE_CASE),
+            
+            // Common reference formats in Indian bank SMS with better boundaries
+            Regex("\\b(?:ref|reference|txn|transaction|txnid|upi|rrn)\\b(?:\\s+|\\s*[:.]?\\s*)([A-Za-z0-9]+)", RegexOption.IGNORE_CASE),
+            
+            // Colon or similar separator followed by digits
+            Regex("(?:ref|reference|txn|transaction|id|number|no|trxn)(?:\\s+|\\s*:?\\s*)([A-Za-z0-9]+)", RegexOption.IGNORE_CASE),
+            
+            // UPI specific format
+            Regex("(?:upi ref no|upi ref|upireference)\\s*(?::|is)?\\s*([A-Za-z0-9]+)", RegexOption.IGNORE_CASE),
+            
+            // Patterns with "/" character common in some banks
+            Regex("(?:UPI/P2[A-Z]/)(\\d+)", RegexOption.IGNORE_CASE)
+        )
+        
+        for (pattern in refPatterns) {
+            val match = pattern.find(smsBody)
+            if (match != null && match.groupValues.size > 1) {
+                val ref = match.groupValues[1].trim()
+                // Ensure reference is a reasonable length and not a date
+                if (ref.length >= 6 && !ref.matches(Regex("\\d{2}[/\\-]\\d{2}[/\\-]\\d{2,4}"))) {
+                    Log.d(TAG, "Extracted reference number: $ref")
+                    return ref
+                }
+            }
+        }
+        
+        Log.d(TAG, "No reference number found in SMS")
+        return ""
+    }
+    
+    /**
      * Smart duplicate detection system to prevent counting the same transaction multiple times
      * while still allowing legitimate repeated transactions
      */
@@ -68,6 +106,9 @@ class TransactionRepositoryImpl @Inject constructor(
         if (newTransaction.sender == "Manual Entry" || newTransaction.sender == "Manual Approval") {
             return false
         }
+        
+        // Extract reference number from new transaction
+        val newRef = extractTransactionReference(newTransaction.body)
         
         // Calculate a time threshold (2 minutes window for potential duplicates)
         val timeThreshold = 2 * 60 * 1000 // 2 minutes in milliseconds
@@ -90,56 +131,46 @@ class TransactionRepositoryImpl @Inject constructor(
             }
             
             // 2. Check for transaction reference numbers in SMS
-            val newRef = extractTransactionReference(newTransaction.body)
+            // This is the most reliable method for determining unique transactions
             val existingRef = extractTransactionReference(existingTransaction.smsBody ?: "")
-            if (newRef.isNotEmpty() && existingRef.isNotEmpty() && newRef == existingRef) {
-                Log.d(TAG, "Duplicate detected: Same transaction reference number: $newRef")
-                return true
+            
+            // If both transactions have reference numbers and they're different,
+            // these are definitely different transactions regardless of other attributes
+            if (newRef.isNotEmpty() && existingRef.isNotEmpty()) {
+                if (newRef == existingRef) {
+                    Log.d(TAG, "Duplicate detected: Same transaction reference number: $newRef")
+                    return true
+                } else {
+                    // Different reference numbers = different transactions, even if other attributes match
+                    Log.d(TAG, "Different reference numbers: new=$newRef vs existing=$existingRef")
+                    continue
+                }
             }
             
-            // 3. Check for similar attributes within a very short time window (30 seconds)
-            val isVeryRecent = newTransaction.timestamp - existingTransaction.date.time < 30 * 1000
+            // 3. If reference numbers weren't available or couldn't be extracted,
+            // fall back to checking other attributes, but with stricter rules
+            
+            // Only consider as duplicate if from the SAME bank sender
+            val isSameSender = existingTransaction.smsSender?.equals(newTransaction.sender, ignoreCase = true) ?: false
+            
+            // Check other attributes
+            val isVeryRecent = newTransaction.timestamp - existingTransaction.date.time < 30 * 1000 // 30 seconds
             val isSameAmount = Math.abs(existingTransaction.amount - Math.abs(newTransaction.amount)) < 0.01
             val isSameMerchant = existingTransaction.merchantName.equals(
                 newTransaction.merchantName, 
                 ignoreCase = true
             )
             
-            if (isVeryRecent && isSameAmount && isSameMerchant) {
-                Log.d(TAG, "Duplicate detected: Same merchant, amount and very recent (within 30s)")
+            if (isVeryRecent && isSameAmount && isSameMerchant && isSameSender) {
+                // This is a fallback rule that's less reliable, so log a warning
+                Log.w(TAG, "Potential duplicate detected using fallback rule (no reference numbers): " +
+                         "Same merchant, amount and very recent (within 30s) from same sender")
                 return true
             }
         }
         
         // Not a duplicate
         return false
-    }
-    
-    /**
-     * Extracts transaction reference/ID from SMS text if available
-     */
-    private fun extractTransactionReference(smsBody: String): String {
-        // Try to extract transaction reference/ID using regex patterns
-        val refPatterns = listOf(
-            // Common reference formats in Indian bank SMS
-            Regex("(?:ref|reference|txn|transaction|txnid|upi|rrn)(?:\\s+|\\s*:?\\s*)([A-Za-z0-9]+)", RegexOption.IGNORE_CASE),
-            Regex("(?:id|number|no|trxn)(?:\\s+|\\s*:?\\s*)([A-Za-z0-9]+)", RegexOption.IGNORE_CASE),
-            // UPI specific format
-            Regex("(?:upi ref no|upi ref|upireference)\\s*(?::|is)?\\s*([A-Za-z0-9]+)", RegexOption.IGNORE_CASE)
-        )
-        
-        for (pattern in refPatterns) {
-            val match = pattern.find(smsBody)
-            if (match != null && match.groupValues.size > 1) {
-                val ref = match.groupValues[1].trim()
-                // Ensure reference is a reasonable length and not a date
-                if (ref.length >= 6 && !ref.matches(Regex("\\d{2}[/\\-]\\d{2}[/\\-]\\d{2,4}"))) {
-                    return ref
-                }
-            }
-        }
-        
-        return ""
     }
     
     override fun getMonthlySpending(): Flow<Double> {
