@@ -544,7 +544,7 @@ class SmsReceiver : BroadcastReceiver() {
         // STEP 3: Strong transaction indicator patterns - check for reliable transaction signals
         
         // Check if this message has balance requirement format (common in banking program promotions)
-        val hasBalanceRequirementFormat = body.contains(Regex("(?:maintain|average|minimum)\\s+(?:monthly|quarterly)?\\s+balance\\s+(?:of|:)\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE))
+        // val hasBalanceRequirementFormat = body.contains(Regex("(?:maintain|average|minimum)\\s+(?:monthly|quarterly)?\\s+balance\\s+(?:of|:)\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE))
         
         // If message has balance requirement format but not clear transaction indicators, reject it
         if (hasBalanceRequirementFormat && !body.contains(Regex("\\b(?:debited|debit|paid|sent|spent|payment|purchase|transaction|txn)\\b", RegexOption.IGNORE_CASE))) {
