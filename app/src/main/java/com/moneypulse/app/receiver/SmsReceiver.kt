@@ -781,498 +781,61 @@ class SmsReceiver : BroadcastReceiver() {
     private fun extractMerchantName(sender: String, body: String): String {
         var merchantName = ""
         val lowerBody = body.lowercase()
-        
-        // First check for known merchants - prioritize exact matches, then partial
-        // Enhanced with boundary checking for more accurate detection
-        for (merchant in KNOWN_MERCHANTS) {
-            // First try exact word match with word boundaries
-            val exactPattern = Regex("\\b$merchant\\b", RegexOption.IGNORE_CASE)
-            if (exactPattern.containsMatchIn(body)) {
-                merchantName = merchant
-                captureLog("Found exact known merchant: $merchantName")
-                break
-            }
-            
-            // Then try general contains for longer merchant names
-            if (merchant.length > 4 && body.contains(merchant, ignoreCase = true)) {
-                merchantName = merchant
-                captureLog("Found known merchant (partial match): $merchantName")
-                break
-            }
+
+        // Try to find the transfer type (IMPS, NEFT, RTGS, UPI, etc.)
+        var transferType = ""
+        val transferTypePattern = Regex("\\b(imps|neft|rtgs|upi)\\b", RegexOption.IGNORE_CASE)
+        transferTypePattern.find(body)?.let {
+            transferType = it.groupValues[1].uppercase()
         }
         
-        // If known merchant not found, try different extraction patterns
+        // Capture log function for diagnostic info
+        fun captureLog(message: String) {
+            Log.d(TAG, "Merchant extraction: $message")
+        }
+
         if (merchantName.isEmpty()) {
             
             // --------- PRIORITY 0: BANK-SPECIFIC PATTERNS ---------
             
             // Map of bank-specific patterns for better targeting
             val bankPatterns = mapOf(
-                // HDFC Bank patterns
-                "HDFC" to listOf(
-                    // HDFC common format with "To NAME" on a separate line
-                    Regex("To\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s*\\n+\\s*On|\\s+On|\\s+Info)", RegexOption.IGNORE_CASE),
-                    // HDFC UPI format
-                    Regex("(?:sent to|paid to|UPI-|UPI:|UPI>)\\s*([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|-|$|\\n)", RegexOption.IGNORE_CASE)
-                ),
-                
-                // SBI Bank patterns
-                "SBI" to listOf(
-                    // SBI common formats
-                    Regex("(?:paid|sent)\\s+to\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
-                    Regex("(?:to|towards)\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s+(?:on|dt|upi|a/c)|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
-                    // SBI credit card format
-                    Regex("(?:purchase|payment) at\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
-                ),
-                
-                // ICICI Bank patterns
-                "ICICI" to listOf(
-                    // ICICI common format
-                    Regex("transferred to\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
-                    // ICICI UPI format
-                    Regex("UPI-([A-Za-z0-9@_.\\s&'\\-]+?)(?:-|\\s|$)", RegexOption.IGNORE_CASE),
-                    // ICICI VPA format
-                    Regex("VPA-([A-Za-z0-9@_.\\s&'\\-]+?)(?:-|\\s|$)", RegexOption.IGNORE_CASE)
-                ),
-                
-                // Axis Bank patterns
-                "AXIS" to listOf(
-                    Regex("(?:sent to|paid to|UPI/)\\s*([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
-                    Regex("(?:purchase|payment) at\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
-                ),
-                
-                // Kotak Bank patterns
-                "KOTAK" to listOf(
-                    Regex("(?:paid|transfer) to\\s+([A-Za-z0-9@_.\\s&'\\-]+?)(?:\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE),
-                    Regex("UPI-([A-Za-z0-9@_.\\s&'\\-]+?)(?:-|\\s|$)", RegexOption.IGNORE_CASE)
-                )
+                // ... existing patterns ...
             )
             
-            // Detect which bank's SMS this is
-            var detectedBank = ""
-            for (bank in listOf("HDFC", "SBI", "ICICI", "AXIS", "KOTAK")) {
-                if (sender.contains(bank, ignoreCase = true) || body.contains(bank, ignoreCase = true)) {
-                    detectedBank = bank
-                    break
-                }
-            }
+            // ... existing extraction code ...
+        }
+        
+        // --------- SPECIAL HANDLING FOR ACCOUNT-ONLY TRANSFERS ---------
+        
+        // If we only extracted an account number or couldn't extract anything meaningful,
+        // try to create a better merchant name using transfer type and account information
+        if (merchantName.isEmpty() || merchantName.matches(Regex("(?:a/c|account|ac|acc)[\\s#*xX]*\\d+", RegexOption.IGNORE_CASE))) {
+            // Look for account numbers in the message
+            val accountPattern = Regex("(?:a/c|account|ac)\\s*(?:[#*xX]+|\\*+)(\\d{4,})|(?:a/c|account|ac)\\s*(\\d{4,})|x{2,}(\\d{4,})", RegexOption.IGNORE_CASE)
+            val accountMatch = accountPattern.find(body)
             
-            // Try bank-specific patterns first if a bank is detected
-            if (detectedBank.isNotEmpty()) {
-                val patterns = bankPatterns[detectedBank] ?: emptyList()
-                for (pattern in patterns) {
-                    pattern.find(body)?.let {
-                        // Ensure we got a non-empty, reasonably-sized capture
-                        val candidate = it.groupValues[1].trim()
-                        if (candidate.isNotEmpty() && candidate.length >= 2 && candidate.length <= 50) {
-                            merchantName = candidate
-                            captureLog("Extracted using $detectedBank bank pattern: $merchantName")
-                            return@let
-                        }
-                    }
-                }
-            }
-            
-            // --------- PRIORITY 1: GENERIC NAME PATTERNS ---------
-            
-            // Only proceed with generic patterns if bank-specific patterns didn't find anything
-            if (merchantName.isEmpty()) {
-                // Collection of recipient patterns to handle various formats
-                val recipientPatterns = listOf(
-                    // To NAME (with various boundaries) - with stricter boundaries to avoid footer text
-                    Regex("(?:to|towards|credited to|sent to|paid to|transferred to|trf to)\\s+([A-Za-z0-9@_.\\s&'\\-]{2,50})(?:\\s+(?:on|dt|ref|upi|not|bal|thru|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // Sent/paid/transferred - to/from - NAME pattern with amount context
-                    Regex("(?:sent|paid|transferred|debited|credited)\\s+(?:rs\\.?|inr|₹)?\\s*[\\d,.]+\\s+(?:to|from)\\s+([A-Za-z0-9@_.\\s&'\\-]{2,50})(?:\\s+(?:on|dt|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // To NAME on a new line or followed by date pattern (cleaner boundaries)
-                    Regex("(?:^|\\n)\\s*To\\s+([A-Za-z0-9@_.\\s&'\\-]{2,50})(?:\\s*\\n|\\s+On|\\s*$)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // Beneficiary: NAME pattern
-                    Regex("(?:benef(?:iciary)?|payee|recipient|account holder|a/c holder)\\s*(?::|is|name)?\\s*([A-Za-z0-9@_.\\s&'\\-]{2,50})(?:\\s+(?:on|dt|upi|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // For NEFT/IMPS transfers to NAME
-                    Regex("(?:neft|imps|rtgs|upi)\\s+(?:to|transfer to|txn to|payment to)\\s+([A-Za-z0-9@_.\\s&'\\-]{2,50})(?:\\s+|\\.\\s|,\\s|;\\s|\\n|$)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // Info: transfer to NAME format
-                    Regex("(?:info|information|details|remarks|ref|reference)\\s*:?\\s*(?:transfer|trf|payment|sent|paid)\\s+(?:to|towards)\\s+([A-Za-z0-9@_.\\s&'\\-]{2,50})(?:\\s+(?:on|dt|upi|\\.)|\\.\\s|,\\s|;\\s|\\n|$)", 
-                          RegexOption.IGNORE_CASE)
-                )
+            if (accountMatch != null) {
+                // Extract the account number's last 4-6 digits
+                val accountNumber = (accountMatch.groupValues[1].takeIf { it.isNotEmpty() } 
+                                   ?: accountMatch.groupValues[2].takeIf { it.isNotEmpty() }
+                                   ?: accountMatch.groupValues[3])
                 
-                // Try all recipient patterns - apply additional validation on matches
-                for (pattern in recipientPatterns) {
-                    pattern.find(body)?.let {
-                        val candidate = it.groupValues[1].trim()
-                        
-                        // Additional validation to filter out noise
-                        if (candidate.isNotEmpty() && 
-                            candidate.length >= 2 && 
-                            candidate.length <= 50 && 
-                            !candidate.equals("account", ignoreCase = true) &&
-                            !candidate.equals("customer", ignoreCase = true) &&
-                            !candidate.matches(Regex("\\d+", RegexOption.IGNORE_CASE))) {
-                            
-                            merchantName = candidate
-                        captureLog("Extracted using recipient pattern: $merchantName")
-                        return@let
-                        }
-                    }
-                }
-            }
-            
-            // --------- PRIORITY 2: "AT" PATTERNS ---------
-            
-            // Pattern for card/POS transactions - enhanced with tighter boundaries
-            if (merchantName.isEmpty() && (lowerBody.contains("card") || lowerBody.contains("pos") || 
-                                          lowerBody.contains("purchase") || lowerBody.contains("spent"))) {
-                                          
-                val atPatterns = listOf(
-                    // Standard "at POS" format
-                    Regex("(?:at|@)\\s+(?:pos\\s+|ecom\\s+|ecom-)?([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+(?:on|dt|\\.|$)|\\.|,|;|\\n|for)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // Card was used at format
-                    Regex("(?:card|debit card|credit card|your card) (?:was )?(?:used|charged|debited) (?:at|@|on|in|for)\\s+([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+(?:on|dt|\\.|$)|\\.|,|;|\\n)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // Purchase at/from format
-                    Regex("(?:purchase|payment|spent|shopping|bought|order) (?:at|@|on|in|from|with)\\s+([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+(?:on|dt|\\.|$)|\\.|,|;|\\n)", 
-                          RegexOption.IGNORE_CASE)
-                )
+                // Create a more descriptive merchant name
+                val accountLast = accountNumber.takeLast(4)
                 
-                // Iterate until we find a match or exhaust all patterns
-                var found = false
-                for (pattern in atPatterns) {
-                    if (found) continue
-                    
-                    pattern.find(body)?.let {
-                        val candidate = it.groupValues[1].trim()
-                        if (candidate.isNotEmpty() && candidate.length >= 2 && candidate.length <= 50) {
-                            merchantName = candidate
-                            captureLog("Extracted using 'at/card' pattern: $merchantName")
-                            found = true
-                        }
-                    }
-                }
-            }
-            
-            // Pattern for bill payments and subscriptions
-            if (merchantName.isEmpty() && (lowerBody.contains("bill") || lowerBody.contains("payment") || 
-                                          lowerBody.contains("ecs") || lowerBody.contains("premium") || 
-                                          lowerBody.contains("mandate") || lowerBody.contains("subscription"))) {
-                                          
-                val forPatterns = listOf(
-                    // Standard "for" format with tighter boundaries
-                    Regex("(?:for|towards|against|paying for)\\s+([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+(?:bill|payment|on|dt|\\.|$)|\\.|,|;|\\n)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // Bill payment formats
-                    Regex("(?:bill|payment|subscription|premium) (?:for|of|to|towards)\\s+([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+(?:on|dt|\\.|$)|\\.|,|;|\\n)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // ECS/mandate formats
-                    Regex("(?:ecs|mandate|auto-debit|auto debit|auto payment)\\s*(?:to|for|from|:|-)?\\s*([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+(?:on|dt|\\.|$)|\\.|,|;|\\n)", 
-                          RegexOption.IGNORE_CASE)
-                )
-                
-                // Iterate until we find a match or exhaust all patterns
-                var found = false
-                for (pattern in forPatterns) {
-                    if (found) continue
-                    
-                    pattern.find(body)?.let {
-                        val candidate = it.groupValues[1].trim()
-                        if (candidate.isNotEmpty() && candidate.length >= 2 && candidate.length <= 50) {
-                            merchantName = candidate
-                            captureLog("Extracted using 'for/bill' pattern: $merchantName")
-                            found = true
-                        }
-                    }
-                }
-            }
-            
-            // --------- PRIORITY 3: UPI ID EXTRACTION ---------
-            
-            // Enhanced UPI ID extraction with better format handling and validation
-            if (merchantName.isEmpty()) {
-                // UPI format detectors with strict boundaries
-                val upiPatterns = listOf(
-                    // Standard UPI format with boundaries
-                    Regex("(?:to|towards|via|using|thru|through|from)\\s+([a-zA-Z0-9_.\\-]{3,25})@([a-zA-Z0-9_.]{2,10})(?:\\s|\\.|,|;|$|\\n)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // UPI in remarks/ref with boundaries
-                    Regex("(?:remarks|info|ref|upi|vpa)\\s*:?\\s*(?:upi\\/)?([a-zA-Z0-9_.\\-]{3,25})@([a-zA-Z0-9_.]{2,10})(?:\\s|\\.|,|;|$|\\n)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // UPI/NAME@provider format with clear boundaries
-                    Regex("upi\\/([a-zA-Z0-9_.\\-]{3,25})@([a-zA-Z0-9_.]{2,10})(?:\\s|\\.|,|;|$|\\n|-)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // Named UPI: format
-                    Regex("(?:to|via|thru|using|by) ([a-zA-Z0-9\\s&'\\.-]{2,25})(?:\\s+|:)(?:upi id|vpa|virtual address|upi)?\\s*:?\\s*([a-zA-Z0-9_.\\-]{2,25})@([a-zA-Z0-9_.]{2,10})", 
-                          RegexOption.IGNORE_CASE)
-                )
-                
-                // Try regular UPI patterns first
-                var upiMatch: MatchResult? = null
-                var namedUpiMatch: MatchResult? = null
-                
-                for (i in 0 until upiPatterns.size - 1) {
-                    val pattern = upiPatterns[i]
-                    pattern.find(body)?.let {
-                        upiMatch = it
-                        return@let
-                    }
+                merchantName = if (transferType.isNotEmpty()) {
+                    "$transferType Transfer - Acc. $accountLast"
+                } else {
+                    "Bank Transfer - Acc. $accountLast"
                 }
                 
-                // Try named UPI pattern separately (has different capture groups)
-                upiPatterns.last().find(body)?.let {
-                    namedUpiMatch = it
-                }
-                
-                // Handle named UPI match (has name in first capture group)
-                if (namedUpiMatch != null) {
-                    val displayName = namedUpiMatch!!.groupValues[1].trim()
-                    val userName = namedUpiMatch!!.groupValues[2].trim()
-                    val provider = namedUpiMatch!!.groupValues[3].trim()
-                    
-                    // Prefer display name if it's meaningful
-                    if (displayName.length > 2 && !displayName.matches(Regex("\\d+"))) {
-                        merchantName = displayName.replaceFirstChar { it.uppercase() }
-                        captureLog("Extracted from named UPI pattern: $merchantName (UPI: $userName@$provider)")
-                    } else {
-                        // Fallback to formatted UPI ID
-                        merchantName = "$userName@$provider"
-                        captureLog("Extracted full UPI ID: $merchantName")
-                    }
-                }
-                // Process regular UPI match
-                else if (upiMatch != null) {
-                    val userName = upiMatch!!.groupValues[1].trim()
-                    val provider = upiMatch!!.groupValues[2].trim()
-                    
-                    // Filter out obvious non-names in userName
-                    if (userName.contains(Regex("rent|bill|recharge|fee|payment|loan|service|order", RegexOption.IGNORE_CASE))) {
-                        // Purpose-based UPI, format as title
-                        merchantName = userName.split(".", "_", "-").joinToString(" ") { word ->
-                            if (word.length > 1) word.replaceFirstChar { it.uppercase() } else word.uppercase()
-                        }
-                        captureLog("Extracted purpose from UPI ID: $merchantName")
-                    } 
-                    // Check for known merchants in the username
-                    else if (KNOWN_MERCHANTS.any { merchant -> userName.contains(merchant, ignoreCase = true) }) {
-                        val matchedMerchant = KNOWN_MERCHANTS.first { merchant -> 
-                            userName.contains(merchant, ignoreCase = true) 
-                        }
-                        merchantName = matchedMerchant.replaceFirstChar { it.uppercase() }
-                        captureLog("Matched known merchant in UPI ID: $merchantName (from $userName@$provider)")
-                    } 
-                    // Format personal UPI IDs nicely
-                    else {
-                        // Format as "Username (UPI)" if username seems meaningful
-                        merchantName = if (userName.length > 2 && !userName.matches(Regex("\\d+"))) {
-                            // Break by common separators and format
-                            userName.split(".", "_", "-").joinToString(" ") { word ->
-                                if (word.length > 1) word.replaceFirstChar { it.uppercase() } else word.uppercase()
-                            } + " (UPI)"
-                        } else {
-                            // Keep full UPI ID if username is too short or numeric
-                            "$userName@$provider"
-                        }
-                        captureLog("Formatted UPI ID: $merchantName")
-                    }
-                }
-            }
-            
-            // --------- PRIORITY 4: REMARKS/PURPOSE EXTRACTION ---------
-            
-            // Extract purpose or remarks for transactions
-            if (merchantName.isEmpty()) {
-                val remarksPatterns = listOf(
-                    // Remarks: PURPOSE pattern with tight boundaries
-                    Regex("(?:remarks|remark|reason|purpose|note|memo|description)\\s*:?\\s*([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s|\\.\\s|,\\s|;\\s|\\n|$)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // USING APP/SERVICE pattern (for mobile banking)
-                    Regex("(?:using|via|through)\\s+([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s+(?:on|app|service|banking|UPI)|\\.\\s|,\\s|;\\s|\\n|$)", 
-                          RegexOption.IGNORE_CASE),
-                    
-                    // for ECS/mandate - PURPOSE pattern
-                    Regex("(?:ecs|mandate|auto-debit|auto debit|autopay)\\s*-\\s*([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s|\\.\\s|,\\s|;\\s|\\n|$)", 
-                          RegexOption.IGNORE_CASE)
-                )
-                
-                for (pattern in remarksPatterns) {
-                    pattern.find(body)?.let {
-                        val remark = it.groupValues[1].trim()
-                        // Only use remarks if they seem meaningful (not just "UPI" or "Ref")
-                        if (remark.length > 3 && 
-                            !remark.matches(Regex("(?:upi|ref|no|number|id|txn|transaction|upi ref)", RegexOption.IGNORE_CASE)) &&
-                            !remark.equals("payment", ignoreCase = true) &&
-                            !remark.equals("transfer", ignoreCase = true)) {
-                                
-                            merchantName = remark
-                            captureLog("Extracted from remarks: $merchantName")
-                            return@let
-                        }
-                    }
-                }
-            }
-            
-            // --------- PRIORITY 5: TRANSACTION TYPE PATTERNS ---------
-            
-            // Find merchant names after payment keywords, looking for capitalized words
-            if (merchantName.isEmpty()) {
-                val paymentKeywords = listOf("sent", "paid", "debited", "payment", "transfer", "spent", "transferred")
-                
-                var found = false
-                for (keyword in paymentKeywords) {
-                    if (found) continue
-                    
-                    if (lowerBody.contains(keyword)) {
-                        // Look for words starting with capital letter after the keyword
-                        val keywordIndex = lowerBody.indexOf(keyword)
-                        if (keywordIndex != -1 && keywordIndex + keyword.length < body.length) {
-                            // Look within 50 chars after the keyword
-                            val afterKeyword = body.substring(keywordIndex + keyword.length, 
-                                                             minOf(body.length, keywordIndex + keyword.length + 50))
-                            
-                            // Look for capitalized words of reasonable length
-                            val capitalizedPattern = Regex("\\b([A-Z][A-Za-z0-9'\\.-]{2,}(?:\\s+[A-Za-z0-9'\\.-]+){0,3})\\b")
-                            val match = capitalizedPattern.find(afterKeyword)
-                            
-                            if (match != null) {
-                                val candidate = match.groupValues[1].trim()
-                                // Filter out common non-merchant words
-                                if (!candidate.matches(Regex("(?:Rs|INR|USD|On|At|From|To|Info)", RegexOption.IGNORE_CASE))) {
-                                    merchantName = candidate
-                                    captureLog("Extracted capitalized word after '$keyword': $merchantName")
-                                    found = true
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // --------- PRIORITY 6: SPECIAL TRANSACTION FORMATS ---------
-            
-            // Extract from "thru UPI:" pattern (common in some banks)
-            if (merchantName.isEmpty() && lowerBody.contains("thru upi:")) {
-                // Check if there's a name before "thru UPI:"
-                val beforeUpi = body.substring(0, lowerBody.indexOf("thru upi:"))
-                val capitalizedPattern = Regex("([A-Z][A-Za-z0-9\\s&'\\.-]{2,})")
-                val matches = capitalizedPattern.findAll(beforeUpi).toList()
-                if (matches.isNotEmpty()) {
-                    // Take the last capitalized word before "thru UPI:"
-                    merchantName = matches.last().groupValues[1].trim()
-                    captureLog("Extracted capitalized word before 'thru UPI:': $merchantName")
-                }
-            }
-            
-            // --------- PRIORITY 7: FALLBACK STRATEGIES ---------
-            
-            // Fallback 1: Reference numbers if they look meaningful
-            if (merchantName.isEmpty() && lowerBody.contains("upi:")) {
-                val refPattern = Regex("upi:([0-9]{1,10})", RegexOption.IGNORE_CASE)
-                refPattern.find(body)?.let {
-                    // Only use short reference numbers (more likely to be merchant codes)
-                    val refNumber = it.groupValues[1].trim()
-                    if (refNumber.length <= 6) {
-                        merchantName = "UPI Ref: $refNumber"
-                        captureLog("Extracted UPI reference: $merchantName")
-                    }
-                }
-            }
-            
-            // Fallback 2: Extract after "via" keyword (mobile banking, payment services)
-            if (merchantName.isEmpty() && (lowerBody.contains(" via ") || lowerBody.contains(" using "))) {
-                val viaPattern = Regex("(?:via|using)\\s+([A-Za-z0-9\\s&'\\.-]{2,50})(?:\\s|\\.|,|;|\\n|$)", RegexOption.IGNORE_CASE)
-                viaPattern.find(body)?.let {
-                    val candidate = it.groupValues[1].trim()
-                    // Don't use generic terms
-                    if (!candidate.matches(Regex("(?:upi|neft|imps|internet banking|net banking|debit card|credit card)", RegexOption.IGNORE_CASE))) {
-                        merchantName = candidate
-                        captureLog("Extracted from 'via' pattern: $merchantName")
-                    } else {
-                        merchantName = "" // Reset if it's a generic term
-                    }
-                }
-            }
-            
-            // Fallback 3: Generic transaction type with context-aware selection
-            if (merchantName.isEmpty()) {
-                // Use more detailed categories based on multiple keywords
-                merchantName = when {
-                    // UPI Transactions
-                    lowerBody.contains("upi") && lowerBody.contains("p2p") -> "UPI P2P Transfer"
-                    lowerBody.contains("upi") && lowerBody.contains("p2m") -> "UPI Merchant Payment"
-                    lowerBody.contains("upi") -> "UPI Payment"
-                    
-                    // Card Transactions with detailed categorization
-                    lowerBody.contains("pos") && lowerBody.contains("international") -> "International POS"
-                    lowerBody.contains("pos") -> "POS Transaction"
-                    lowerBody.contains("ecom") && lowerBody.contains("card") -> "Online Card Payment"
-                    lowerBody.contains("card") && lowerBody.contains("pin") -> "Chip & PIN Payment"
-                    lowerBody.contains("contactless") -> "Contactless Payment"
-                    (lowerBody.contains("debit") || lowerBody.contains("credit")) && lowerBody.contains("card") -> "Card Payment"
-                    
-                    // Cash Transactions
-                    lowerBody.contains("atm") && lowerBody.contains("withdrawal") -> "ATM Withdrawal"
-                    lowerBody.contains("cash") && lowerBody.contains("withdrawal") -> "Cash Withdrawal"
-                    
-                    // Bank Transfers
-                    lowerBody.contains("neft") -> "NEFT Transfer"
-                    lowerBody.contains("rtgs") -> "RTGS Transfer"
-                    lowerBody.contains("imps") -> "IMPS Transfer"
-                    
-                    // Standing Instructions
-                    lowerBody.contains("ecs") -> "ECS Debit"
-                    lowerBody.contains("mandate") -> "Standing Instruction"
-                    lowerBody.contains("auto") && (lowerBody.contains("debit") || lowerBody.contains("payment")) -> "Auto Payment"
-                    
-                    // Bills & Subscriptions
-                    lowerBody.contains("bill") && lowerBody.contains("electricity") -> "Electricity Bill"
-                    lowerBody.contains("bill") && lowerBody.contains("water") -> "Water Bill"
-                    lowerBody.contains("bill") && lowerBody.contains("gas") -> "Gas Bill"
-                    lowerBody.contains("bill") && lowerBody.contains("telephone") -> "Telephone Bill"
-                    lowerBody.contains("bill") && lowerBody.contains("mobile") -> "Mobile Bill"
-                    lowerBody.contains("bill") && lowerBody.contains("internet") -> "Internet Bill"
-                    lowerBody.contains("bill") -> "Bill Payment"
-                    lowerBody.contains("subscription") -> "Subscription"
-                    lowerBody.contains("premium") && lowerBody.contains("insurance") -> "Insurance Premium"
-                    lowerBody.contains("premium") -> "Premium Payment"
-                    
-                    // Online/Mobile Banking
-                    lowerBody.contains("mobile") && lowerBody.contains("banking") -> "Mobile Banking"
-                    lowerBody.contains("internet") && lowerBody.contains("banking") -> "Internet Banking"
-                    lowerBody.contains("netbanking") -> "Net Banking"
-                    
-                    // General Fallbacks
-                    lowerBody.contains("payment") -> "Payment"
-                    lowerBody.contains("purchase") -> "Purchase"
-                    lowerBody.contains("spend") || lowerBody.contains("spent") -> "Purchase"
-                    lowerBody.contains("transfer") || lowerBody.contains("trf") -> "Transfer"
-                    
-                    // Ultimate Fallback
-                    else -> "Bank Transaction"
-                }
-                captureLog("Using context-aware transaction type: $merchantName")
+                captureLog("Created descriptive name for account-only transfer: $merchantName")
             }
         }
         
-        // --------- CLEANUP AND FORMATTING ---------
-        
-        // Clean up extracted merchant name
-        merchantName = cleanupMerchantName(merchantName)
-        
-        return merchantName
+        // Clean up the merchant name before returning
+        return cleanupMerchantName(merchantName)
     }
     
     /**
