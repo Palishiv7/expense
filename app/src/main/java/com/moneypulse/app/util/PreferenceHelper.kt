@@ -20,6 +20,7 @@ class PreferenceHelper @Inject constructor(
         private const val KEY_FIRST_LAUNCH = "first_launch"
         private const val KEY_TRANSACTION_MODE = "transaction_mode"
         private const val KEY_USER_INCOME = "user_income"
+        private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         
         // SMS Permission preferences
         private const val KEY_SMS_PERMISSION_DIALOG_SHOWN = "sms_permission_dialog_shown"
@@ -75,6 +76,24 @@ class PreferenceHelper @Inject constructor(
      */
     fun completeFirstLaunch() {
         encryptedPrefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply()
+    }
+    
+    /**
+     * Check if onboarding has been completed
+     */
+    fun isOnboardingCompleted(): Boolean {
+        return encryptedPrefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
+    }
+    
+    /**
+     * Set onboarding completed status
+     */
+    fun setOnboardingCompleted(completed: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply()
+        if (completed) {
+            // Also mark first launch as completed when onboarding is completed
+            completeFirstLaunch()
+        }
     }
     
     /**

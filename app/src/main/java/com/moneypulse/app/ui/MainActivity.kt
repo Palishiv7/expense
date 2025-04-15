@@ -1,6 +1,7 @@
 package com.moneypulse.app.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -30,6 +31,7 @@ import com.moneypulse.app.R
 import com.moneypulse.app.ui.dialog.TransactionModeDialog
 import com.moneypulse.app.ui.home.HomeScreen
 import com.moneypulse.app.ui.home.viewmodel.HomeViewModel
+import com.moneypulse.app.ui.onboarding.OnboardingActivity
 import com.moneypulse.app.ui.settings.SettingsScreen
 import com.moneypulse.app.ui.transactions.AddTransactionScreen
 import com.moneypulse.app.ui.transactions.TransactionsScreen
@@ -79,6 +81,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Check if onboarding is completed
+        if (!preferenceHelper.isOnboardingCompleted()) {
+            // If onboarding is not completed, redirect to OnboardingActivity
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
         
         // Check if the SMS permission dialog has been shown before
         if (!preferenceHelper.hasSmsPermissionDialogShown()) {
