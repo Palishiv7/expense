@@ -3,10 +3,13 @@ package com.moneypulse.app.ui.settings
 import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -106,7 +109,9 @@ fun SettingsScreen(
             }
         }
         
-        // Transaction Mode Section
+        // Transaction Mode Section with integrated SMS permission handling
+        val smsPermissionStatus by viewModel.smsPermissionStatus.collectAsState()
+        
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -121,6 +126,33 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.h6,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
+                
+                // Add SMS permission status info if not granted
+                if (smsPermissionStatus != PreferenceHelper.PERMISSION_STATUS_GRANTED) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .background(color = Color(0xFFFFEBEE), shape = RoundedCornerShape(4.dp)),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "SMS permission required for automatic detection",
+                            style = MaterialTheme.typography.caption,
+                            color = Color(0xFFD32F2F),
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(8.dp)
+                        )
+                        
+                        TextButton(
+                            onClick = { viewModel.requestSmsPermission() },
+                            modifier = Modifier.padding(4.dp)
+                        ) {
+                            Text("Enable", color = MaterialTheme.colors.primary)
+                        }
+                    }
+                }
                 
                 Row(
                     modifier = Modifier
@@ -152,68 +184,10 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.setAutoTransaction(it) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colors.primary
-                        )
+                        ),
+                        // Disable switch if SMS permission not granted
+                        enabled = smsPermissionStatus == PreferenceHelper.PERMISSION_STATUS_GRANTED
                     )
-                }
-            }
-        }
-        
-        // SMS Permissions Section
-        val smsPermissionStatus by viewModel.smsPermissionStatus.collectAsState()
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            elevation = 4.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "SMS Transaction Detection",
-                    style = MaterialTheme.typography.h6,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = when (smsPermissionStatus) {
-                                PreferenceHelper.PERMISSION_STATUS_GRANTED -> "Enabled"
-                                PreferenceHelper.PERMISSION_STATUS_DENIED -> "Disabled (Permission Denied)"
-                                PreferenceHelper.PERMISSION_STATUS_SKIPPED -> "Disabled (Permission Skipped)"
-                                else -> "Not Configured"
-                            },
-                            style = MaterialTheme.typography.subtitle1
-                        )
-                        
-                        Text(
-                            text = "Automatically detect transactions from bank SMS messages",
-                            style = MaterialTheme.typography.caption,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                    
-                    // Only show enable button if permission is not granted
-                    if (smsPermissionStatus != PreferenceHelper.PERMISSION_STATUS_GRANTED) {
-                        Button(
-                            onClick = { viewModel.requestSmsPermission() },
-                            colors = ButtonDefaults.buttonColors(
-                                backgroundColor = MaterialTheme.colors.primary
-                            )
-                        ) {
-                            Text("Enable", color = MaterialTheme.colors.onPrimary)
-                        }
-                    }
                 }
             }
         }
