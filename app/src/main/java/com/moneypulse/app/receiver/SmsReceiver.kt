@@ -928,13 +928,104 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // 3. ICICI Bank "[NAME] credited" pattern (highest priority)
-        val iciciCreditedPattern = Regex("($namePattern)\\s+credited", RegexOption.IGNORE_CASE)
+        // Enhanced to handle name formats with or without boundaries
+        val iciciCreditedPattern = Regex("([A-Z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
         iciciCreditedPattern.find(body)?.let {
             val candidate = it.groupValues[1].trim()
             if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
                 captureLog("HIGH PRIORITY - Extracted from ICICI credited pattern: $merchantName")
                 return merchantName
+            }
+        }
+        
+        // New precise pattern for ICICI format without semicolon (highest priority)
+        // Targets the format "on DD-MMM-YY NAME credited" seen in the logs
+        val iciciPrecisePattern = Regex("on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}\\s+([A-Z][A-Za-z]+(?:\\s+[A-Za-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
+        iciciPrecisePattern.find(body)?.let {
+            val candidate = it.groupValues[1].trim()
+            if (isValidMerchantCandidate(candidate, 50, body)) {
+                merchantName = candidate
+                captureLog("HIGH PRIORITY - Extracted from ICICI precise date pattern: $merchantName")
+                return merchantName
+            }
+        }
+        
+        // 3b. ICICI Bank specific debited/credited format - handles cases like "debited for Rs X; NAME credited"
+        if (sender.contains("ICICI", ignoreCase = true) || body.contains("ICICI", ignoreCase = true)) {
+            // Direct extraction for the exact format in the logs
+            // This specifically targets formats like "ICICI Bank Acct XX804 debited for Rs 5.00 on 15-Apr-25 SHIVAM PALIWAL credited"
+            val iciciExactLogPattern = Regex("debited for\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,.]+\\s+on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}\\s+([A-Z][A-Z]*[a-z]+(?:\\s+[A-Z][a-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
+            iciciExactLogPattern.find(body)?.let {
+                val candidate = it.groupValues[1].trim() 
+                if (isValidMerchantCandidate(candidate, 50, body)) {
+                    merchantName = candidate
+                    captureLog("HIGH PRIORITY - Extracted from ICICI exact log pattern: $merchantName")
+                    return merchantName
+                }
+            }
+            
+            // Format with merchant name and ID: "on DATE; NAME ID credited"
+            val iciciMerchantIdPattern = Regex("on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}(?:;|:)\\s*([A-Za-z][A-Za-z0-9\\s&'\\.-]+?)\\s+([0-9]{4,})\\s+credited", RegexOption.IGNORE_CASE)
+            iciciMerchantIdPattern.find(body)?.let {
+                // Combine merchant name and ID for better identification
+                val nameComponent = it.groupValues[1].trim()
+                val merchantId = it.groupValues[2].trim()
+                val candidate = "$nameComponent $merchantId".trim()
+                
+                if (isValidMerchantCandidate(candidate, 50, body)) {
+                    merchantName = candidate
+                    captureLog("HIGH PRIORITY - Extracted from ICICI merchant+ID credited pattern: $merchantName")
+                    return merchantName
+                }
+            }
+            
+            // Super aggressive pattern - directly look for capitalized names before "credited"
+            // This is highly targeted at the exact format we're seeing in the logs
+            val wordBeforeCreditedPattern = Regex("\\b([A-Z][A-Za-z]+(?:\\s+[A-Z][A-Za-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
+            wordBeforeCreditedPattern.findAll(body).toList().lastOrNull()?.let {
+                val candidate = it.groupValues[1].trim()
+                if (candidate.length >= 4 && isValidMerchantCandidate(candidate, 50, body)) {
+                    merchantName = candidate
+                    captureLog("HIGH PRIORITY - Extracted name before credited: $merchantName")
+                    return merchantName
+                }
+            }
+            
+            // Keep original format with semicolon for backward compatibility
+            // Format with semicolon: "debited for Rs X on DATE; NAME credited"
+            val iciciSemicolonPattern = Regex("debited for\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,.]+\\s+on[^;]*;\\s*([A-Z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
+            iciciSemicolonPattern.find(body)?.let {
+                val candidate = it.groupValues[1].trim() 
+                if (isValidMerchantCandidate(candidate, 50, body)) {
+                    merchantName = candidate
+                    captureLog("HIGH PRIORITY - Extracted from ICICI semicolon pattern: $merchantName")
+                    return merchantName
+                }
+            }
+            
+            // Add a fallback pattern that tries to extract any name right before "credited"
+            // This is a more aggressive approach but with proper validation should be reliable
+            val iciciAggressivePattern = Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,.]+(?:.*?)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
+            iciciAggressivePattern.find(body)?.let {
+                val candidate = it.groupValues[1].trim()
+                if (isValidMerchantCandidate(candidate, 50, body)) {
+                    merchantName = candidate
+                    captureLog("HIGH PRIORITY - Extracted from ICICI aggressive fallback pattern: $merchantName")
+                    return merchantName
+                }
+            }
+            
+            // General fallback pattern for any format where a name appears before "credited"
+            // This will catch various ICICI formats we haven't specifically handled
+            val iciciGeneralPattern = Regex("on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}[^;]*;\\s*([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
+            iciciGeneralPattern.find(body)?.let {
+                val candidate = it.groupValues[1].trim()
+                if (isValidMerchantCandidate(candidate, 50, body)) {
+                    merchantName = candidate
+                    captureLog("HIGH PRIORITY - Extracted from ICICI general credited pattern: $merchantName")
+                    return merchantName
+                }
             }
         }
         
