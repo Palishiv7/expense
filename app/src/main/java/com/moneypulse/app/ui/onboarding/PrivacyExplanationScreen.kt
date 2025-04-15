@@ -53,7 +53,7 @@ fun PrivacyExplanationScreen() {
         
         // Privacy points
         PrivacyPoint(
-            icon = Icons.Default.Smartphone,
+            icon = Icons.Default.Lock,
             title = "Data Stays on Your Device",
             description = "All your financial data is stored only on your device. We don't upload or share your data with any servers."
         )
@@ -69,7 +69,7 @@ fun PrivacyExplanationScreen() {
         Spacer(modifier = Modifier.height(24.dp))
         
         PrivacyPoint(
-            icon = Icons.Default.Security,
+            icon = Icons.Default.Lock,
             title = "Only Reads Financial SMS",
             description = "MoneyPulse only processes SMS messages from financial institutions that contain transaction information - personal messages are never read or analyzed."
         )

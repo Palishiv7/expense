@@ -155,6 +155,9 @@ dependencies {
     implementation "androidx.compose.ui:ui-tooling-preview:$compose_version"
     implementation "androidx.compose.runtime:runtime-livedata:$compose_version"
     implementation "androidx.navigation:navigation-compose:2.7.4"
+    implementation "androidx.compose.animation:animation:$compose_version"
+    implementation "androidx.compose.animation:animation-graphics:$compose_version"
+    implementation "androidx.compose.material:material-icons-extended:$compose_version"
     
     // Room for local database
     implementation "androidx.room:room-runtime:$room_version"

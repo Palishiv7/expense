@@ -120,7 +120,7 @@ fun OnboardingScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     // Only show "Get Started" button on the last page
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = pagerState.currentPage == pagerState.pageCount - 1,
                         enter = fadeIn(),
                         exit = fadeOut()
@@ -142,7 +142,7 @@ fun OnboardingScreen(
                     }
                     
                     // Show "Next" button on all pages except the last
-                    AnimatedVisibility(
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = pagerState.currentPage < pagerState.pageCount - 1,
                         enter = fadeIn(),
                         exit = fadeOut()

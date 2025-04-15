@@ -162,7 +162,7 @@ class SecurityHelper @Inject constructor(
             
             // Use key to encrypt device ID to get consistent bytes for SQLCipher
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey as Key)
             
             // Return the encrypted data as bytes (consistent for same device)
             return cipher.doFinal(deviceId.toByteArray())
