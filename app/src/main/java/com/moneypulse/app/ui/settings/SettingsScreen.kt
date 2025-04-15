@@ -1,6 +1,8 @@
 package com.moneypulse.app.ui.settings
 
 import android.content.Intent
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.background
@@ -15,6 +17,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleObserver
+import androidx.lifecycle.OnLifecycleEvent
 import com.moneypulse.app.BuildConfig
 import com.moneypulse.app.R
 import com.moneypulse.app.ui.debug.DebugLogActivity
@@ -31,6 +36,31 @@ fun SettingsScreen(
     val isAutoTransactionEnabled by viewModel.isAutoTransaction.collectAsState()
     val userIncome by viewModel.userIncome.collectAsState()
     val context = LocalContext.current
+    
+    // Refresh permission status when the screen becomes visible
+    LaunchedEffect(Unit) {
+        viewModel.refreshSmsPermissionStatus()
+    }
+    
+    // Use lifecycle-aware API to detect when returning from settings
+    DisposableEffect(context) {
+        val activity = context as? androidx.activity.ComponentActivity
+        val callback = androidx.activity.OnBackPressedCallback(false) { /* dummy callback */ }
+        
+        // Set up the observer for activity resume events
+        activity?.lifecycle?.addObserver(object : androidx.lifecycle.LifecycleObserver {
+            @androidx.lifecycle.OnLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_RESUME)
+            fun onResume() {
+                // Refresh permissions when activity resumes
+                viewModel.refreshSmsPermissionStatus()
+            }
+        })
+        
+        onDispose {
+            // Clean up when leaving the screen
+            activity?.lifecycle?.removeObserver(callback)
+        }
+    }
     
     val transactionModeTitle = stringResource(id = R.string.transaction_mode_title)
     val autoModeDescription = stringResource(id = R.string.transaction_mode_auto_description)

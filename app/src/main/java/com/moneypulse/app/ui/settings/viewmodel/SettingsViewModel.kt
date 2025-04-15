@@ -47,18 +47,31 @@ class SettingsViewModel @Inject constructor(
     
     /**
      * Refresh the SMS permission status from the system
+     * and update transaction mode accordingly
      */
-    private fun refreshSmsPermissionStatus() {
+    fun refreshSmsPermissionStatus() {
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECEIVE_SMS
         ) == PackageManager.PERMISSION_GRANTED
         
+        val previousStatus = preferenceHelper.getSmsPermissionStatus()
+        
         if (hasPermission) {
             preferenceHelper.setSmsPermissionStatus(PreferenceHelper.PERMISSION_STATUS_GRANTED)
+            
+            // If permission was just granted (previously denied or skipped),
+            // automatically enable automatic mode as a convenience
+            if (previousStatus != PreferenceHelper.PERMISSION_STATUS_GRANTED) {
+                preferenceHelper.setTransactionMode(PreferenceHelper.MODE_AUTOMATIC)
+                _isAutoTransaction.value = true
+            }
         } else if (preferenceHelper.getSmsPermissionStatus() == PreferenceHelper.PERMISSION_STATUS_GRANTED) {
             // Permission was revoked in settings
             preferenceHelper.setSmsPermissionStatus(PreferenceHelper.PERMISSION_STATUS_DENIED)
+            // Force to manual mode if permission revoked
+            preferenceHelper.setTransactionMode(PreferenceHelper.MODE_MANUAL)
+            _isAutoTransaction.value = false
         }
         
         _smsPermissionStatus.value = preferenceHelper.getSmsPermissionStatus()
