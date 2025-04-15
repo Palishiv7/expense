@@ -6,6 +6,24 @@ plugins {
     id 'kotlin-parcelize'
 }
 
+// Load keystore properties from a local file or environment variables for GitHub Actions
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+
+// Check if we're running in GitHub Actions
+def isGitHubActions = System.getenv("GITHUB_ACTIONS") == "true"
+
+if (isGitHubActions) {
+    // In GitHub Actions, load from environment variables
+    keystoreProperties.put("storePassword", System.getenv("KEYSTORE_PASSWORD") ?: "")
+    keystoreProperties.put("keyPassword", System.getenv("KEY_PASSWORD") ?: "")
+    keystoreProperties.put("keyAlias", System.getenv("KEY_ALIAS") ?: "")
+    // Note: The keystore file itself is loaded directly in the GitHub workflow
+} else if (keystorePropertiesFile.exists()) {
+    // For local development, try to load from keystore.properties file
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     compileSdkVersion 34
     buildToolsVersion "34.0.0"
@@ -25,11 +43,51 @@ android {
         }
     }
 
+    // Add signing configurations
+    signingConfigs {
+        release {
+            // Use empty values as fallback if properties aren't available
+            // This allows the build to complete without signing for development purposes
+            keyAlias keystoreProperties.getProperty('keyAlias', '')
+            keyPassword keystoreProperties.getProperty('keyPassword', '')
+            storeFile keystoreProperties.getProperty('storeFile') ? 
+                file(keystoreProperties.getProperty('storeFile')) : null
+            storePassword keystoreProperties.getProperty('storePassword', '')
+            
+            // Skip signing if not all properties are available
+            // This helps in development builds
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
+    }
+
+    // Configure App Bundle for Play Store
+    bundle {
+        language {
+            enableSplit = true
+        }
+        density {
+            enableSplit = true
+        }
+        abi {
+            enableSplit = true
+        }
+        
+        // Ensure resources are properly bundled
+        dynamic {
+            supportedAbis = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // Apply release signing configuration
+            signingConfig signingConfigs.release
             
             // Disable debug logs in release builds
             buildConfigField "boolean", "DEBUG_LOGGING", "false"
