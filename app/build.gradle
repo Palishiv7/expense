@@ -189,6 +189,10 @@ dependencies {
     
     // Security tools
     implementation "org.bouncycastle:bcprov-jdk15on:1.70" // Cryptography provider
+    // Bouncycastle for additional cryptography support
+    implementation "org.bouncycastle:bcpkix-jdk15on:1.70" // PKI/CMS/CRS/PKCS/etc. functionality
+    // Apache Commons Codec for base64 and other encodings
+    implementation "commons-codec:commons-codec:1.15"
     
     // Testing
     testImplementation 'junit:junit:4.13.2'
