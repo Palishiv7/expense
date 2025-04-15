@@ -159,15 +159,23 @@ jobs:
         # Decode keystore from base64 secret
         cd "${{ env.ROOT_DIR }}"
         
+        # Debug keystore processing
+        echo "Processing keystore..."
+        
         # Create app directory if it doesn't exist
         mkdir -p app
         
         # Decode the keystore and store it in the app directory
         echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/moneypulse.keystore
         
-        # Create the keystore.properties file with correct path
-        echo "storeFile=moneypulse.keystore" > keystore.properties
-      
+        # Make sure the file exists and has content
+        ls -la app/moneypulse.keystore || echo "Keystore file not created correctly"
+        
+        # Debug file size
+        echo "Keystore file size: $(stat -c%s app/moneypulse.keystore || echo "File not found")"
+        
+        # Don't create separate keystore.properties file - let build.gradle handle it
+    
     # Build debug APK for normal commits or PR
     - name: Build Debug APK
       if: ${{ !startsWith(github.ref, 'refs/tags/v') && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == '') }}

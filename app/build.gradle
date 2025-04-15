@@ -18,7 +18,8 @@ if (isGitHubActions) {
     keystoreProperties.put("storePassword", System.getenv("KEYSTORE_PASSWORD") ?: "")
     keystoreProperties.put("keyPassword", System.getenv("KEY_PASSWORD") ?: "")
     keystoreProperties.put("keyAlias", System.getenv("KEY_ALIAS") ?: "")
-    // Note: The keystore file itself is loaded directly in the GitHub workflow
+    // For GitHub Actions, the keystore is in the app directory
+    keystoreProperties.put("storeFile", "moneypulse.keystore")
 } else if (keystorePropertiesFile.exists()) {
     // For local development, try to load from keystore.properties file
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
@@ -50,9 +51,12 @@ android {
             // This allows the build to complete without signing for development purposes
             keyAlias keystoreProperties.getProperty('keyAlias', '')
             keyPassword keystoreProperties.getProperty('keyPassword', '')
-            storeFile keystoreProperties.getProperty('storeFile') ? 
-                file(keystoreProperties.getProperty('storeFile')) : null
             storePassword keystoreProperties.getProperty('storePassword', '')
+            
+            // Handle the storeFile correctly
+            if (keystoreProperties.getProperty('storeFile') != null && !keystoreProperties.getProperty('storeFile').isEmpty()) {
+                storeFile file(keystoreProperties.getProperty('storeFile'))
+            }
             
             // Skip signing if not all properties are available
             // This helps in development builds
