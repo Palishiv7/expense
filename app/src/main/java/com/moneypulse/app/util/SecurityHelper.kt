@@ -11,14 +11,20 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
 import com.moneypulse.app.BuildConfig
+import com.moneypulse.app.util.security.CryptoHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.security.KeyStore
 import java.security.SecretKey
-import java.security.spec.PBEKeySpec
+import java.security.Key
+import java.security.cert.Certificate
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -171,17 +177,15 @@ class SecurityHelper @Inject constructor(
             val fallbackDeviceId = getSecureDeviceId()
             val salt = "MoneyPulse_Key_Salt_v2" // Salt to strengthen the key
             
-            // Use PBKDF2 to derive a strong key
-            val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-            val spec = PBEKeySpec(
+            // Use PBKDF2 to derive a strong key using our helper class
+            val secretKey = CryptoHelper.createPBEKey(
                 fallbackDeviceId.toCharArray(), 
                 salt.toByteArray(), 
                 10000, // iterations - higher is more secure but slower
                 256 // key length in bits
             )
-            val tmp = factory.generateSecret(spec)
             
-            return tmp.encoded
+            return secretKey.encoded
         }
     }
     
