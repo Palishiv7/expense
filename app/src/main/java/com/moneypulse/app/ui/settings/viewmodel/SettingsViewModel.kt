@@ -1,16 +1,19 @@
 package com.moneypulse.app.ui.settings.viewmodel
 
 import android.Manifest
-import android.content.Context
+import android.app.Activity
+import android.app.Application
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.Settings
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.moneypulse.app.util.PreferenceHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,39 +22,33 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val preferenceHelper: PreferenceHelper,
-    @ApplicationContext private val context: Context
-) : ViewModel() {
+    application: Application,
+    private val preferenceHelper: PreferenceHelper
+) : AndroidViewModel(application) {
     
-    companion object {
-        private const val TAG = "SettingsViewModel"
-    }
+    private val context = getApplication<Application>()
     
-    // State for auto transaction toggle
-    private val _isAutoTransaction = MutableStateFlow(preferenceHelper.getTransactionMode() == PreferenceHelper.MODE_AUTOMATIC)
+    // State for automatic transaction mode
+    private val _isAutoTransaction = MutableStateFlow(preferenceHelper.isAutoTransactionEnabled())
     val isAutoTransaction: StateFlow<Boolean> = _isAutoTransaction.asStateFlow()
     
-    // State for security toggle
-    private val _isSecurityEnabled = MutableStateFlow(preferenceHelper.isSecurityEnabled())
-    val isSecurityEnabled: StateFlow<Boolean> = _isSecurityEnabled.asStateFlow()
-    
-    // State for screen capture blocking
-    private val _isScreenCaptureBlocked = MutableStateFlow(preferenceHelper.isScreenCaptureBlocked())
-    val isScreenCaptureBlocked: StateFlow<Boolean> = _isScreenCaptureBlocked.asStateFlow()
+    // State for user's monthly income
+    private val _userIncome = MutableStateFlow(preferenceHelper.getUserIncome())
+    val userIncome: StateFlow<Double> = _userIncome.asStateFlow()
     
     // State for SMS permission status
     private val _smsPermissionStatus = MutableStateFlow(preferenceHelper.getSmsPermissionStatus())
     val smsPermissionStatus: StateFlow<String> = _smsPermissionStatus.asStateFlow()
     
-    // State for user income
-    private val _userIncome = MutableStateFlow(preferenceHelper.getUserMonthlyIncome())
-    val userIncome: StateFlow<Double> = _userIncome.asStateFlow()
-    
     init {
-        // Refresh permission status
+        // Refresh permission status when ViewModel is created
         refreshSmsPermissionStatus()
     }
     
+    /**
+     * Refresh the SMS permission status from the system
+     * and update transaction mode accordingly
+     */
     fun refreshSmsPermissionStatus() {
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
@@ -85,53 +82,28 @@ class SettingsViewModel @Inject constructor(
      */
     fun setAutoTransaction(enabled: Boolean) {
         if (enabled) {
-            if (ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.RECEIVE_SMS
-                ) == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted, enable auto mode
+            // Only enable automatic mode if SMS permission is granted
+            if (_smsPermissionStatus.value == PreferenceHelper.PERMISSION_STATUS_GRANTED) {
                 preferenceHelper.setTransactionMode(PreferenceHelper.MODE_AUTOMATIC)
                 _isAutoTransaction.value = true
             } else {
-                // No permission, can't enable
+                // Request SMS permission first
+                requestSmsPermission()
+                // Keep switch in off position
                 _isAutoTransaction.value = false
-                
-                // Open app settings to enable SMS permission
-                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                val uri = Uri.fromParts("package", context.packageName, null)
-                intent.data = uri
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
             }
         } else {
-            // Disable auto mode
             preferenceHelper.setTransactionMode(PreferenceHelper.MODE_MANUAL)
             _isAutoTransaction.value = false
         }
     }
     
     /**
-     * Set monthly income
+     * Update the user's monthly income
      */
-    fun setMonthlyIncome(amount: Double) {
-        preferenceHelper.setUserMonthlyIncome(amount)
-        _userIncome.value = amount
-    }
-    
-    /**
-     * Toggle app security features
-     */
-    fun setSecurityEnabled(enabled: Boolean) {
-        preferenceHelper.setSecurityEnabled(enabled)
-        _isSecurityEnabled.value = enabled
-    }
-    
-    /**
-     * Toggle screen capture blocking
-     */
-    fun setScreenCaptureBlocked(blocked: Boolean) {
-        preferenceHelper.setScreenCaptureBlocked(blocked)
-        _isScreenCaptureBlocked.value = blocked
+    fun updateIncome(income: Double) {
+        preferenceHelper.setUserIncome(income)
+        _userIncome.value = income
     }
     
     /**
@@ -139,7 +111,7 @@ class SettingsViewModel @Inject constructor(
      * since we can't directly request permission from settings screen
      */
     fun requestSmsPermission() {
-        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
         val uri = Uri.fromParts("package", context.packageName, null)
         intent.data = uri
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

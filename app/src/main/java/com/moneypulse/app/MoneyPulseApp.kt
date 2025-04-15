@@ -58,6 +58,9 @@ class MoneyPulseApp : Application(), Configuration.Provider {
             Handler(Looper.getMainLooper()).postDelayed({
                 safeInitialize(hasRestarted)
             }, initialDelay)
+            
+            // Schedule a reset of the third restart flag after a period of stable operation
+            scheduleRestartFlagReset()
         } catch (e: Exception) {
             Log.e(TAG, "Critical error during app start: ${e.message}")
         }
@@ -70,33 +73,29 @@ class MoneyPulseApp : Application(), Configuration.Provider {
         val lastTimestamp = prefs.getLong("last_opened_timestamp", 0L)
         val currentTime = System.currentTimeMillis()
         
-        // Track restart count
-        val restartCount = prefs.getInt("restart_count", 0)
-        
         // Save current timestamp
-        prefs.edit()
-            .putLong("last_opened_timestamp", currentTime)
-            .apply()
+        prefs.edit().putLong("last_opened_timestamp", currentTime).apply()
         
         // If last timestamp was within 24 hours, this is likely a restart
         // rather than a fresh install or normal app open after a long time
         val isRestart = lastTimestamp > 0 && (currentTime - lastTimestamp) < 24 * 60 * 60 * 1000
         
+        // Track restart count if this is a restart
         if (isRestart) {
-            // Increment restart count and update the third restart flag
-            val newRestartCount = restartCount + 1
-            val isThirdRestart = newRestartCount >= 3
+            val restartCount = prefs.getInt("restart_count", 0) + 1
+            prefs.edit().putInt("restart_count", restartCount).apply()
             
-            prefs.edit()
-                .putInt("restart_count", newRestartCount)
-                .putBoolean("is_third_restart", isThirdRestart)
-                .apply()
+            // Check if this is the third restart and set flag
+            if (restartCount >= 3) {
+                Log.d(TAG, "Third restart detected - setting safety flag")
+                prefs.edit().putBoolean("is_third_restart", true).apply()
+            }
             
-            Log.d(TAG, "App restart #$newRestartCount detected")
+            Log.d(TAG, "App restart #$restartCount detected")
         } else {
-            // Reset restart count for fresh installs or opens after long time
+            // Reset counters on fresh start (after long time)
             prefs.edit()
-                .putInt("restart_count", 1)
+                .putInt("restart_count", 0)
                 .putBoolean("is_third_restart", false)
                 .apply()
         }
@@ -228,6 +227,12 @@ class MoneyPulseApp : Application(), Configuration.Provider {
      */
     private fun scheduleCleanupIfNeeded(isRestart: Boolean) {
         try {
+            // Check if this is the third restart case - skip cleanup entirely
+            if (prefs.getBoolean("is_third_restart", false)) {
+                Log.d(TAG, "Skipping database cleanup on third restart for stability")
+                return
+            }
+            
             // Get database cleanup service safely via provider
             val service = databaseCleanupServiceProvider.get()
             
@@ -253,18 +258,20 @@ class MoneyPulseApp : Application(), Configuration.Provider {
      * This prevents crashes during app initialization
      */
     override fun getWorkManagerConfiguration(): Configuration {
+        // Check the third restart status
         val isThirdRestart = prefs.getBoolean("is_third_restart", false)
         
         if (isThirdRestart) {
-            Log.d(TAG, "Third+ restart detected, using minimal WorkManager configuration")
-            // On third restart, always use minimal configuration to avoid crashes
+            Log.d(TAG, "Using safe WorkManager configuration due to third restart condition")
+            // Always use minimal configuration on third restart
             return Configuration.Builder()
                 .setMinimumLoggingLevel(Log.INFO)
                 .build()
         }
         
         if (workManagerInitialized) {
-            // We've successfully initialized WorkManager before
+            // We've successfully initialized WorkManager before 
+            // and this is not our problematic restart
             try {
                 val factory = workerFactoryProvider.get()
                 return Configuration.Builder()
@@ -300,6 +307,29 @@ class MoneyPulseApp : Application(), Configuration.Provider {
                 Log.e(TAG, "Error during delayed WorkManager initialization: ${e.message}")
             }
         }, 3000)
+    }
+    
+    /**
+     * Schedule a delayed reset of the third restart flag to ensure
+     * the app can recover from a problematic state after running stably
+     */
+    private fun scheduleRestartFlagReset() {
+        // Only attempt reset if the third restart flag is set
+        if (prefs.getBoolean("is_third_restart", false)) {
+            // Wait 2 minutes before resetting the flag - if the app stays alive this long,
+            // we consider it stable enough to try normal initialization next time
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    Log.d(TAG, "App has been stable - resetting third restart flag for next launch")
+                    prefs.edit()
+                        .putBoolean("is_third_restart", false)
+                        .putInt("restart_count", 0)
+                        .apply()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to reset restart flags: ${e.message}")
+                }
+            }, 2 * 60 * 1000) // 2 minutes
+        }
     }
     
     companion object {

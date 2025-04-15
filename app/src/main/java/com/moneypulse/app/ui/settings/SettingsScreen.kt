@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,7 +15,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -31,17 +28,12 @@ import com.moneypulse.app.ui.settings.viewmodel.SettingsViewModel
 import com.moneypulse.app.util.PreferenceHelper
 import java.text.NumberFormat
 import java.util.Locale
-import kotlinx.coroutines.delay
-import android.widget.Toast
 
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val isAutoTransaction by viewModel.isAutoTransaction.collectAsState()
-    val securityEnabled by viewModel.isSecurityEnabled.collectAsState()
-    val screenCaptureBlocked by viewModel.isScreenCaptureBlocked.collectAsState()
-    val smsPermissionStatus by viewModel.smsPermissionStatus.collectAsState()
+    val isAutoTransactionEnabled by viewModel.isAutoTransaction.collectAsState()
     val userIncome by viewModel.userIncome.collectAsState()
     val context = LocalContext.current
     
@@ -88,9 +80,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(16.dp)
     ) {
         Text(
             text = "Settings",
@@ -152,6 +142,8 @@ fun SettingsScreen(
         }
         
         // Transaction Mode Section with integrated SMS permission handling
+        val smsPermissionStatus by viewModel.smsPermissionStatus.collectAsState()
+        
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -205,7 +197,7 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = if (isAutoTransaction) 
+                            text = if (isAutoTransactionEnabled) 
                                     stringResource(id = R.string.transaction_mode_auto)
                                   else 
                                     stringResource(id = R.string.transaction_mode_manual),
@@ -213,14 +205,14 @@ fun SettingsScreen(
                         )
                         
                         Text(
-                            text = if (isAutoTransaction) autoModeDescription else manualModeDescription,
+                            text = if (isAutoTransactionEnabled) autoModeDescription else manualModeDescription,
                             style = MaterialTheme.typography.caption,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                     
                     Switch(
-                        checked = isAutoTransaction,
+                        checked = isAutoTransactionEnabled,
                         onCheckedChange = { viewModel.setAutoTransaction(it) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colors.primary
@@ -366,7 +358,7 @@ fun SettingsScreen(
                 Button(
                     onClick = {
                         val newIncome = incomeText.toDoubleOrNull() ?: userIncome
-                        viewModel.setMonthlyIncome(newIncome)
+                        viewModel.updateIncome(newIncome)
                         showIncomeDialog = false
                     }
                 ) {
