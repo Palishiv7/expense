@@ -281,6 +281,94 @@ class SmsReceiver : BroadcastReceiver() {
     @Inject
     lateinit var securityHelper: SecurityHelper
     
+    // After the companion object ends, before the @Inject section, add the new method:
+
+    /**
+     * Improved check if a sender is from a financial institution
+     * Uses multi-layered approach for greater flexibility with prefixed sender IDs
+     */
+    private fun isFinancialSender(sender: String): Boolean {
+        // First, check exact matches for known senders
+        if (BANK_SENDERS.contains(sender) || UPI_SENDERS.contains(sender)) {
+            captureLog("Sender matched exact bank/UPI ID: $sender")
+            return true
+        }
+        
+        // Normalize the sender ID to uppercase
+        val normalizedSender = sender.uppercase()
+        
+        // Regular expression for detecting bank-like patterns with prefixes
+        val regex = Regex("^([A-Z]{2})-?([A-Z]+(?:BK|BNK|BANK|NBK|INB))$")
+        if (regex.matches(normalizedSender)) {
+            captureLog("Sender matched bank pattern with prefix: $sender")
+            return true
+        }
+
+        // Fallback: Split by hyphen and check known bank codes
+        val bankId = if (normalizedSender.contains("-")) {
+            normalizedSender.split("-").lastOrNull() ?: normalizedSender
+        } else {
+            normalizedSender
+        }
+
+        // Check for known bank IDs
+        val knownBankIds = BANK_SENDERS + UPI_SENDERS
+        val matches = knownBankIds.any { bankId.contains(it, ignoreCase = true) }
+        
+        if (matches) {
+            captureLog("Sender matched bank ID after prefix removal: $bankId")
+        }
+        
+        return matches
+    }
+    
+    /**
+     * Additional flexible check for financial senders that might use prefixes
+     * Only used as a fallback after standard checks fail
+     */
+    private fun isFlexibleFinancialSender(sender: String): Boolean {
+        // Normalize the sender ID to uppercase
+        val normalizedSender = sender.uppercase()
+        
+        // Common prefix pattern (2-3 letters followed by hyphen)
+        val regex = Regex("^([A-Z]{2,3})-([A-Z]+(?:BK|BNK|BANK|NBK|INB|NBK|MSG))$")
+        if (regex.matches(normalizedSender)) {
+            val parts = normalizedSender.split("-", limit = 2)
+            if (parts.size == 2) {
+                val bankPart = parts[1]
+                // Check if the part after the hyphen matches any known bank ID
+                val bankMatch = BANK_SENDERS.any { bankPart.contains(it) || it.contains(bankPart) }
+                if (bankMatch) {
+                    captureLog("Flexible match: Sender '$sender' matched after prefix removal: $bankPart")
+                    return true
+                }
+            }
+        }
+        
+        // Try extracting the bank ID if there's a hyphen
+        if (normalizedSender.contains("-")) {
+            val parts = normalizedSender.split("-")
+            // Try both parts (before and after hyphen)
+            for (part in parts) {
+                if (part.length >= 3) { // Only consider parts with reasonable length
+                    val bankMatch = BANK_SENDERS.any { 
+                        it.length >= 3 && (part.contains(it) || it.contains(part)) 
+                    }
+                    val upiMatch = UPI_SENDERS.any { 
+                        it.length >= 3 && (part.contains(it) || it.contains(part))
+                    }
+                    
+                    if (bankMatch || upiMatch) {
+                        captureLog("Flexible match: Sender '$sender' contains known financial ID in part: $part")
+                        return true
+                    }
+                }
+            }
+        }
+        
+        return false
+    }
+    
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
@@ -404,8 +492,24 @@ class SmsReceiver : BroadcastReceiver() {
             (upiCode.length <= 5 && sender.contains(upiCode, ignoreCase = true))
         }
         
+        // Add flexible matching as a fallback
+        val isFlexibleFinancialSender = if (!isBankSender && !isPaymentAppSender) {
+            isFlexibleFinancialSender(sender)
+        } else {
+            false
+        }
+        
+        // Log which method matched the sender
+        if (isBankSender) {
+            captureLog("Sender matched as bank sender: $sender")
+        } else if (isPaymentAppSender) {
+            captureLog("Sender matched as payment app: $sender")
+        } else if (isFlexibleFinancialSender) {
+            captureLog("Sender matched using flexible matching: $sender")
+        }
+        
         // Only proceed if the message is from an official bank or payment service
-        if (!isBankSender && !isPaymentAppSender) {
+        if (!isBankSender && !isPaymentAppSender && !isFlexibleFinancialSender) {
             Log.d(TAG, "SMS rejected: Not from a known financial sender - $sender")
             captureLog("SMS rejected: Not from a known financial sender - $sender")
             return false
