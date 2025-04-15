@@ -157,6 +157,66 @@ fun SettingsScreen(
             }
         }
         
+        // SMS Permissions Section
+        val smsPermissionStatus by viewModel.smsPermissionStatus.collectAsState()
+        
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            elevation = 4.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "SMS Transaction Detection",
+                    style = MaterialTheme.typography.h6,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = when (smsPermissionStatus) {
+                                PreferenceHelper.PERMISSION_STATUS_GRANTED -> "Enabled"
+                                PreferenceHelper.PERMISSION_STATUS_DENIED -> "Disabled (Permission Denied)"
+                                PreferenceHelper.PERMISSION_STATUS_SKIPPED -> "Disabled (Permission Skipped)"
+                                else -> "Not Configured"
+                            },
+                            style = MaterialTheme.typography.subtitle1
+                        )
+                        
+                        Text(
+                            text = "Automatically detect transactions from bank SMS messages",
+                            style = MaterialTheme.typography.caption,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                    
+                    // Only show enable button if permission is not granted
+                    if (smsPermissionStatus != PreferenceHelper.PERMISSION_STATUS_GRANTED) {
+                        Button(
+                            onClick = { viewModel.requestSmsPermission() },
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = MaterialTheme.colors.primary
+                            )
+                        ) {
+                            Text("Enable", color = MaterialTheme.colors.onPrimary)
+                        }
+                    }
+                }
+            }
+        }
+        
         // Privacy & Security Section
         Card(
             modifier = Modifier

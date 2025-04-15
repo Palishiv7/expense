@@ -21,9 +21,19 @@ class PreferenceHelper @Inject constructor(
         private const val KEY_TRANSACTION_MODE = "transaction_mode"
         private const val KEY_USER_INCOME = "user_income"
         
+        // SMS Permission preferences
+        private const val KEY_SMS_PERMISSION_DIALOG_SHOWN = "sms_permission_dialog_shown"
+        private const val KEY_SMS_PERMISSION_STATUS = "sms_permission_status"
+        
         // Transaction modes
         const val MODE_AUTOMATIC = "automatic"
         const val MODE_MANUAL = "manual"
+        
+        // SMS Permission status values
+        const val PERMISSION_STATUS_NOT_ASKED = "NOT_ASKED"
+        const val PERMISSION_STATUS_GRANTED = "GRANTED"
+        const val PERMISSION_STATUS_DENIED = "DENIED"
+        const val PERMISSION_STATUS_SKIPPED = "SKIPPED"
         
         // Default income value
         const val DEFAULT_INCOME = 45000.0
@@ -158,5 +168,34 @@ class PreferenceHelper @Inject constructor(
      */
     fun setSecureModeEnabled(enabled: Boolean) {
         encryptedPrefs.edit().putBoolean(KEY_SECURE_MODE, enabled).apply()
+    }
+
+    /**
+     * Check if SMS permission dialog has been shown to the user
+     */
+    fun hasSmsPermissionDialogShown(): Boolean {
+        return encryptedPrefs.getBoolean(KEY_SMS_PERMISSION_DIALOG_SHOWN, false)
+    }
+
+    /**
+     * Mark that SMS permission dialog has been shown to the user
+     */
+    fun markSmsPermissionDialogShown() {
+        encryptedPrefs.edit().putBoolean(KEY_SMS_PERMISSION_DIALOG_SHOWN, true).apply()
+    }
+
+    /**
+     * Get current SMS permission status
+     */
+    fun getSmsPermissionStatus(): String {
+        return encryptedPrefs.getString(KEY_SMS_PERMISSION_STATUS, PERMISSION_STATUS_NOT_ASKED) 
+            ?: PERMISSION_STATUS_NOT_ASKED
+    }
+
+    /**
+     * Set SMS permission status
+     */
+    fun setSmsPermissionStatus(status: String) {
+        encryptedPrefs.edit().putString(KEY_SMS_PERMISSION_STATUS, status).apply()
     }
 } 

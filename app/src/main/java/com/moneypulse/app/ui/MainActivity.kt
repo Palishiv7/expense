@@ -52,10 +52,15 @@ class MainActivity : ComponentActivity() {
     ) { isGranted ->
         if (isGranted) {
             // Permission granted, proceed with SMS reading
+            preferenceHelper.setSmsPermissionStatus(PreferenceHelper.PERMISSION_STATUS_GRANTED)
+            // If permission is granted, default to manual approval mode
+            preferenceHelper.setTransactionMode(PreferenceHelper.MODE_MANUAL)
             checkAndRequestNotificationPermission()
         } else {
             // Handle the case where permission is denied
-            // We will proceed without SMS functionality
+            preferenceHelper.setSmsPermissionStatus(PreferenceHelper.PERMISSION_STATUS_DENIED)
+            // We will proceed without SMS functionality in fully manual mode
+            preferenceHelper.setTransactionMode(PreferenceHelper.MODE_MANUAL)
             checkAndRequestNotificationPermission()
         }
     }
@@ -75,9 +80,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Show SMS permission explanation dialog on app start
-        // instead of directly requesting permissions
-        showSmsPermissionExplanationDialog()
+        // Check if the SMS permission dialog has been shown before
+        if (!preferenceHelper.hasSmsPermissionDialogShown()) {
+            // If not shown before, prepare to show SMS permission explanation dialog
+            showSmsPermissionExplanation = true
+        } else {
+            // Dialog already shown before, proceed based on previous choice
+            proceedBasedOnSmsPermissionStatus()
+        }
         
         setContent {
             MoneyPulseTheme {
@@ -86,10 +96,17 @@ class MainActivity : ComponentActivity() {
                     SmsPermissionExplanationDialog(
                         onContinue = {
                             showSmsPermissionExplanation = false
+                            // Mark that dialog has been shown
+                            preferenceHelper.markSmsPermissionDialogShown()
                             checkAndRequestSmsPermission()
                         },
                         onSkip = {
                             showSmsPermissionExplanation = false
+                            // Mark that dialog has been shown and user skipped
+                            preferenceHelper.markSmsPermissionDialogShown()
+                            preferenceHelper.setSmsPermissionStatus(PreferenceHelper.PERMISSION_STATUS_SKIPPED)
+                            // Ensure we're in fully manual mode if user skips
+                            preferenceHelper.setTransactionMode(PreferenceHelper.MODE_MANUAL)
                             // Skip SMS features and move to next step
                             checkAndRequestNotificationPermission()
                         }
@@ -97,6 +114,38 @@ class MainActivity : ComponentActivity() {
                 }
                 
                 MainScreen()
+            }
+        }
+    }
+    
+    /**
+     * Proceed with app initialization based on previously saved SMS permission status
+     */
+    private fun proceedBasedOnSmsPermissionStatus() {
+        when (preferenceHelper.getSmsPermissionStatus()) {
+            PreferenceHelper.PERMISSION_STATUS_GRANTED -> {
+                // Permission already granted, check if it's still actually granted
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.RECEIVE_SMS
+                    ) == PackageManager.PERMISSION_GRANTED) {
+                    // Permission is still valid, proceed
+                    checkAndRequestNotificationPermission()
+                } else {
+                    // Permission was revoked in settings, update status and handle
+                    preferenceHelper.setSmsPermissionStatus(PreferenceHelper.PERMISSION_STATUS_DENIED)
+                    preferenceHelper.setTransactionMode(PreferenceHelper.MODE_MANUAL)
+                    checkAndRequestNotificationPermission()
+                }
+            }
+            PreferenceHelper.PERMISSION_STATUS_DENIED, 
+            PreferenceHelper.PERMISSION_STATUS_SKIPPED -> {
+                // User previously denied or skipped, respect that choice
+                checkAndRequestNotificationPermission()
+            }
+            else -> {
+                // Unexpected state, show dialog again
+                showSmsPermissionExplanation = true
             }
         }
     }
@@ -114,7 +163,9 @@ class MainActivity : ComponentActivity() {
                 this,
                 Manifest.permission.RECEIVE_SMS
             ) == PackageManager.PERMISSION_GRANTED -> {
-                // Permission is granted, proceed to check notification permission
+                // Permission is granted, update status
+                preferenceHelper.setSmsPermissionStatus(PreferenceHelper.PERMISSION_STATUS_GRANTED)
+                // Proceed to check notification permission
                 checkAndRequestNotificationPermission()
             }
             shouldShowRequestPermissionRationale(Manifest.permission.RECEIVE_SMS) -> {

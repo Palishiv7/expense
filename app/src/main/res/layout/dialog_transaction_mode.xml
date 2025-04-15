@@ -15,6 +15,18 @@
         android:textColor="#6200EE"
         android:layout_marginBottom="24dp"/>
 
+    <TextView
+        android:id="@+id/text_permission_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Automatic mode requires SMS permission"
+        android:textSize="14sp"
+        android:textColor="#D32F2F"
+        android:background="#FFEBEE"
+        android:padding="8dp"
+        android:visibility="gone"
+        android:layout_marginBottom="16dp"/>
+
     <RadioGroup
         android:id="@+id/radio_group_transaction_mode"
         android:layout_width="match_parent"
