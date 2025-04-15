@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
+import com.moneypulse.app.BuildConfig
 import com.moneypulse.app.domain.model.TransactionSms
 import com.moneypulse.app.data.repository.TransactionRepository
 import com.moneypulse.app.util.NotificationHelper
@@ -13,6 +14,9 @@ import com.moneypulse.app.util.SecurityHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -29,7 +33,7 @@ class SmsReceiver : BroadcastReceiver() {
         
         // Log capture for debugging in production
         private val debugLogs = mutableListOf<String>()
-        private const val MAX_DEBUG_LOGS = 50
+        private const val MAX_DEBUG_LOGS = 500
         
         // Add method to retrieve logs
         fun getDebugLogs(): List<String> {
@@ -41,8 +45,196 @@ class SmsReceiver : BroadcastReceiver() {
             debugLogs.clear()
         }
         
+        // Pre-compiled regex patterns for performance optimization
+        // OTP and verification patterns
+        private val STRONG_OTP_PATTERN = Regex("\\botp\\b|\\bone[ -]?time[ -]?password\\b|\\bverification[ -]?code\\b|\\bsecurity[ -]?code\\b|\\bauth(?:entication)?[ -]?code\\b", RegexOption.IGNORE_CASE)
+        private val NUMERIC_CODE_PATTERN = Regex("\\b\\d{4,8}\\b(?:(?:\\s+is|\\s+as|:)\\s+(?:your|the)\\s+(?:otp|code|password))|(?:code(?:\\s+is)?:?\\s+\\b\\d{4,8}\\b)")
+        
+        // Transaction identifier patterns
+        private val BANK_CODE_PATTERN = Regex("^([A-Z]{2})-?([A-Z]+(?:BK|BNK|BANK|NBK|INB))$")
+        private val FLEXIBLE_BANK_PREFIX_PATTERN = Regex("^([A-Z]{2,3})-([A-Z]+(?:BK|BNK|BANK|NBK|INB|NBK|MSG))$")
+        
+        // Common patterns for promotional and balance messages
+        private val BALANCE_REQUIREMENT_FORMAT = Regex("(?:maintain|average|minimum)\\s+(?:monthly|quarterly)?\\s+balance\\s+(?:of|:)\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE)
+        private val AMB_PATTERN = Regex("(?:AMB|Average Monthly Balance)\\s+(?:of|:)?\\s*(?:Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE)
+        
+        // Banking promotional context patterns
+        private val BANKING_PROMO_INVITE = Regex("(?:we|bank)\\s+(?:now\\s+)?invite\\s+you", RegexOption.IGNORE_CASE)
+        private val BANKING_PROMO_DISCOVER = Regex("(?:discover|explore|know|learn|find out)\\s+(?:our|about|more)", RegexOption.IGNORE_CASE)
+        private val BANKING_PROMO_BALANCE = Regex("(?:maintain|average|minimum)\\s+(?:monthly|quarterly|yearly)?\\s*balance", RegexOption.IGNORE_CASE)
+        private val BANKING_PROMO_PROGRAM = Regex("priority\\s+banking|banking\\s+program", RegexOption.IGNORE_CASE)
+        private val BANKING_PROMO_URL = Regex("(?:https?://|www\\.|bit\\.ly|tinyurl|axbk\\.io)[a-zA-Z0-9/?=&%._-]+", RegexOption.IGNORE_CASE)
+        private val BANKING_PROMO_BENEFITS = Regex("(?:enjoy|get|avail|extend)\\s+(?:the\\s+)?benefits", RegexOption.IGNORE_CASE)
+        private val BANKING_PROMO_MANAGER = Regex("(?:dedicated|relationship)\\s+manager", RegexOption.IGNORE_CASE)
+        private val BANKING_PROMO_DISCOUNT = Regex("(?:up to|upto)\\s+\\d+%\\s+off", RegexOption.IGNORE_CASE)
+        private val BANKING_PROMO_SERVICE = Regex("(?:enjoy|get|avail|discover)\\s+(?:a|the|our|exclusive|special|premium)\\s+(?:service|feature|benefit|program|offer)", RegexOption.IGNORE_CASE)
+        
+        // Promotional amount patterns
+        private val PROMO_AMOUNT_PATTERN = Regex("(?:upto|up to|as much as)\\s+(?:\\d+%|Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE)
+        private val PROMO_DISCOUNT_PATTERN = Regex("(?:\\d+%)\\s+(?:off|discount|cashback)", RegexOption.IGNORE_CASE)
+        private val MAINTAIN_BALANCE_PATTERN = Regex("(?:maintain)\\s+(?:an?|the)?\\s+(?:average|minimum)\\s+(?:monthly|quarterly)?\\s+balance\\s+of\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE)
+        
+        // Loan offer patterns
+        private val LOAN_TYPE_PATTERN = Regex("(?:personal|home|car|instant|quick|cash)\\s+loan", RegexOption.IGNORE_CASE)
+        private val LOAN_WITH_PATTERN = Regex("loan\\s+(?:of|at|with|up to|upto)", RegexOption.IGNORE_CASE)
+        private val LOAN_AMOUNT_PATTERN = Regex("(?:Rs\\.?|INR|₹)\\s*\\d+\\s*(?:lac|lakh|lacs|lakhs|l\\b)", RegexOption.IGNORE_CASE)
+        private val LOAN_LARGE_AMOUNT = Regex("(?:Rs\\.?|INR|₹)\\s*\\d+\\s*(?:lac|lakh|crore)s?", RegexOption.IGNORE_CASE)
+        private val LOAN_TERMS_PATTERN = Regex("exclusive\\s+rates|no\\s+paperwork|instant\\s+approval|apply\\s+now", RegexOption.IGNORE_CASE)
+        private val LOAN_URL_PATTERN = Regex("(?:click|visit)\\s*(?::|->)?\\s*(?:https?://|www\\.|http)", RegexOption.IGNORE_CASE)
+        
+        // Debit transaction patterns
+        private val STRONG_DEBIT_INDICATOR = Regex("\\b(?:debited|debit\\s+card|debit\\s+from|payment\\s+made|paid|purchase|spent)\\b", RegexOption.IGNORE_CASE)
+        private val AMOUNT_WITH_CURRENCY = Regex("(?:Rs\\.?|INR|₹|USD|\\$)\\s*[\\d,]+(?:\\.\\d{1,2})?", RegexOption.IGNORE_CASE)
+        private val AMOUNT_KEYWORD = Regex("(?:amount|amt)(?:\\s+(?:of|:))?\\s+(?:Rs\\.?|INR|₹|USD|\\$)?\\s*[\\d,]+(?:\\.\\d{1,2})?", RegexOption.IGNORE_CASE)
+        private val TRANSACTION_REFERENCE = Regex("(?:transaction|txn|ref)(?:\\s+(?:id|no|number|:))?\\s*[:\\s]?\\s*[a-zA-Z0-9]+", RegexOption.IGNORE_CASE)
+        private val MERCHANT_INDICATOR = Regex("(?:at|@|to|with|towards|through|merchant|store|shop)\\s+[A-Z][A-Za-z0-9\\s.&'-]+", RegexOption.IGNORE_CASE)
+        private val CARD_USAGE_INDICATOR = Regex("(?:card\\s+(?:ending|[Xx*]{4,6})\\s+(?:with\\s+)?\\d{4}|card\\s+used|card\\s+transaction|card\\s+purchase|POS\\s+transaction)", RegexOption.IGNORE_CASE)
+        
+        // Balance and transaction type patterns
+        private val DEBIT_KEYWORDS = Regex("\\b(?:debited|debit|paid|sent|spent|payment|purchase|transaction|txn)\\b", RegexOption.IGNORE_CASE)
+        private val CREDIT_PATTERN = Regex("\\b(?:credited|received|deposited|added to|inward)\\b", RegexOption.IGNORE_CASE)
+        private val DEBIT_PATTERN = Regex("\\b(?:debited|debit|paid|spent|payment|purchase|dr\\.?|withdraw|sent)\\b", RegexOption.IGNORE_CASE)
+        private val BALANCE_UPDATE_PATTERN = Regex("\\b(?:balance|bal|statement|summary|info|update)\\b", RegexOption.IGNORE_CASE)
+        
+        // Amount patterns for final check
+        private val AMOUNT_PATTERN_1 = Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,]+(?:\\.\\d{1,2})?")
+        private val AMOUNT_PATTERN_2 = Regex("\\b\\d{1,3}(?:,\\d{3})*(?:\\.\\d{1,2})?\\b")
+        private val AMOUNT_PATTERN_3 = Regex("\\b(?:sent|paid|debited|deducted|withdrew)\\s+(?:Rs\\.?|INR|₹)?\\s*\\d+(?:\\.\\d{1,2})?\\b")
+        private val AMOUNT_PATTERN_4 = Regex("\\b\\d+(?:\\.\\d{1,2})?\\s+(?:from|to|by)\\b")
+        
+        // Transaction parsing patterns
+        private val PRIMARY_AMOUNT_REGEX = Regex(
+            "(?:" +
+                // Indian currency formats with multiple variations
+                "(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)|" +
+                
+                // "Amount/AMT/etc of Rs X" format with optional 'of'
+                "(?:amount|amt|charge|bill|fee)\\s+(?:of\\s+)?(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)|" +
+                
+                // USD with possible INR conversion - handles parentheses
+                "(?:USD|\\$)\\s*([\\d,.]+)(?:\\s*(?:\\((?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)\\))?)|" +
+                
+                // Verb + amount patterns (spent/paid/etc)
+                "(?:spent|paid|send|sent|paying|received|credited|debited|deducted|withdrawn)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)|" +
+                
+                // Preposition + amount patterns
+                "(?:for|of|with|worth)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)|" +
+                
+                // "Sent/Paid X from/to" format (captures direction)
+                "(?:sent|paid)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s+(?:from|to)|" +
+                
+                // "INR X.XX is debited" format (common in some banks)
+                "(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s+(?:is|has been|was|were)\\s+(?:debited|deducted|withdrawn|sent|paid)|" +
+                
+                // Value X.XX followed by DR (Debit) indicator
+                "(?:val|value|amt|amount)?\\s*(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s+DR|" +
+                
+                // X.XX- format (negative amount with trailing minus sign)
+                "([\\d,]+(?:\\.\\d{1,2})?)-(?:\\s|$)|" +
+                
+                // In some messages, the amount is isolated within quotes
+                "['\"](?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)['\"]" +
+            ")"
+        )
+        
+        private val SECONDARY_AMOUNT_REGEX = Regex(
+            // Enhanced patterns for difficult-to-extract amounts
+            "(?:" +
+                // Numbers that look like amounts (on boundaries with decimal points)
+                "(?<=\\s|^)(?:Rs\\.?|INR|₹)?\\s*(\\d[\\d,]+(?:\\.\\d{1,2})?)(?=\\s|$)|" +
+                
+                // Numbers with exactly 2 decimal places (classic currency format)
+                "(?<=\\s|^)(\\d+\\.\\d{2})(?=\\s|$)|" +
+                
+                // Any number after currency symbol (even without space)
+                "(?:Rs|INR|₹)(?:\\s*)([\\d,]+(?:\\.\\d{1,2})?)|" +
+                
+                // Tightly-formatted amounts (no space between currency and digits)
+                "(?:Rs|INR|₹)([\\d,]+(?:\\.\\d{1,2})?)|" +
+                
+                // Balance after transaction (extract both deducted amount and new balance)
+                "(?:balance|bal)\\s+(?:is|:)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)" +
+            ")"
+        )
+        
+        private val NUMBER_PATTERN = Regex("\\b(\\d+(?:,\\d+)*(?:\\.\\d+)?)\\b")
+        private val DEBIT_INDICATOR_WORDS = Regex("debited|spent|debit|dr|deducted|withdrawn|withdraw|sent|paid|payment|transfer|transferred|using card|purchase", RegexOption.IGNORE_CASE)
+        
+        // Reference pattern for transaction detection
+        private val REFERENCE_PATTERNS = listOf(
+            // Common reference number formats with labels
+            Regex("(?:ref|reference|txn|transaction|utr|rrn|rrn no|ref no|txn id|upi ref|imps|neft|rtgs)[#:.-]?\\s*([a-zA-Z0-9]{6,})", RegexOption.IGNORE_CASE),
+            
+            // Reference in UPI format (often starts with numbers)
+            Regex("(?:upi:)([0-9]{6,})", RegexOption.IGNORE_CASE),
+            
+            // Standalone alphanumeric code that looks like a reference
+            Regex("\\b([A-Z0-9]{6,})\\b")
+        )
+        
+        // Date and time pattern for reference generation
+        private val DATE_TIME_PATTERN = Regex("\\b(\\d{1,2}[-/.]\\d{1,2}[-/.]\\d{2,4})(?:\\s*,?\\s*(\\d{1,2}:\\d{1,2}(?::\\d{1,2})?))?\\b")
+        
+        // Merchant name extraction patterns - constants for pattern building
+        private val NAME_PATTERN = "[A-Za-z][A-Za-z0-9\\s&'\\.-]{2,48}"
+        private val BOUNDARY_PATTERNS = "(?:\\s+(?:on|dt|ref|upi|not|bal|\\.)|\\s|\\.|,|;\\n|$)"
+        
+        // High priority merchant name patterns
+        private val GENERAL_TO_PATTERN = Regex("(?:to|towards)\\s+($NAME_PATTERN)$BOUNDARY_PATTERNS", RegexOption.IGNORE_CASE)
+        private val AXIS_UPI_PATTERN = Regex("UPI\\/P2A\\/\\d+\\/($NAME_PATTERN)", RegexOption.IGNORE_CASE)
+        private val ICICI_CREDITED_PATTERN = Regex("([A-Z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
+        private val ICICI_PRECISE_PATTERN = Regex("on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}\\s+([A-Z][A-Za-z]+(?:\\s+[A-Za-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
+        private val ICICI_EXACT_LOG_PATTERN = Regex("debited for\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,.]+\\s+on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}\\s+([A-Z][A-Z]*[a-z]+(?:\\s+[A-Z][a-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
+        private val ICICI_MERCHANT_ID_PATTERN = Regex("on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}(?:;|:)\\s*([A-Za-z][A-Za-z0-9\\s&'\\.-]+?)\\s+([0-9]{4,})\\s+credited", RegexOption.IGNORE_CASE)
+        private val WORD_BEFORE_CREDITED_PATTERN = Regex("\\b([A-Z][A-Za-z]+(?:\\s+[A-Z][A-Za-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
+        private val ICICI_SEMICOLON_PATTERN = Regex("debited for\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,.]+\\s+on[^;]*;\\s*([A-Z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
+        private val ICICI_AGGRESSIVE_PATTERN = Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,.]+(?:.*?)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
+        private val ICICI_GENERAL_PATTERN = Regex("on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}[^;]*;\\s*([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
+        
+        // General patterns
+        private val GENERAL_SENT_TO_PATTERN = Regex("(?:sent|paid|transfer(?:red)?)\\s+(?:to|from)\\s+($NAME_PATTERN)(?:\\s+(?:on|dt|via|UPI|Ref|ref)|\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
+        private val UPI_REF_PATTERN = Regex("UPI(?:\\:|\\s+Ref)\\s*\\d+\\.\\s*($NAME_PATTERN)", RegexOption.IGNORE_CASE)
+        private val SMS_BLOCK_TEXT = Regex("SMS\\s+BLOCK", RegexOption.IGNORE_CASE)
+        private val SMS_BLOCKUPI_TEXT = Regex("SMS\\s+BLOCKUPI", RegexOption.IGNORE_CASE)
+        
+        // Merchant validation patterns
+        private val CAPITALIZED_NAME_PATTERN = Regex("\\b([A-Z][a-z]{2,}(?:\\s+[A-Z][a-z]+){0,3})\\b")
+        private val NON_MERCHANT_TERMS = listOf(
+            "account", "customer", "block", "sms", "cust id", "call", "your a/c", 
+            "this is", "dial", "reference", "ref", "txn", "transaction", 
+            "statement", "for", "net banking", "upi ref", "to a/c", "a/c no", 
+            "account no", "balance", "bal", "not you", "msg", "banking", "info",
+            "dispute", "complaint", "query", "detail", "amount", "acct", "help",
+            "upi id", "vpa", "on", "dt", "please", "as per", "request", "www",
+            "http", "avl bal", "password", "phone", "mobile", "email", "sms",
+            "code", "otp", "verify", "confirmation", "ticket", "application"
+        )
+        private val ACCOUNT_PATTERN = Regex("(?:a/c|account|ac)\\s*(?:no\\.?)?\\s*(?:x+|\\*+)?(\\d+)", RegexOption.IGNORE_CASE)
+        private val BUSINESS_TYPE_PATTERN = Regex("\\b(?:ltd|limited|pvt|private|services|systems|corporation|solutions|technologies|store|shop|mall|center)\\b", RegexOption.IGNORE_CASE)
+        
+        // Merchant name cleanup patterns
+        private val NOISE_PATTERNS = listOf(
+            // Business types and suffixes
+            "\\b(?:ltd|limited|pvt|private|india|services|systems|corporation|solutions|international|technologies)\\b",
+            
+            // Transaction-related noise
+            "\\b(?:bal|balance|bal[:\\s]|ref|refno|your upi|upi ref|not u|not you|fwd|info|reference|txn)\\b",
+            
+            // Payment method noise
+            "\\b(?:ecom|ecom-|pos\\s|pos-|via|using|through)\\b",
+            
+            // Common senders and SMS block-related terms
+            "\\b(?:hdfc|sbi|icici|axis|kotak|sms|block|cust|id|call|dial)\\b",
+            
+            // Phone numbers and instruction text
+            "\\b\\d{10,}\\b", "\\b\\d{5,}\\s+to\\s+\\d{5,}\\b"
+        ).map { Regex(it, RegexOption.IGNORE_CASE) }
+        
         // Capture log function
         private fun captureLog(message: String) {
+            // Only log in debug builds
+            if (!BuildConfig.DEBUG_LOGGING) return
+            
             // Add timestamp
             val timestamp = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date())
             val logEntry = "[$timestamp] $message"
@@ -281,8 +473,61 @@ class SmsReceiver : BroadcastReceiver() {
     @Inject
     lateinit var securityHelper: SecurityHelper
     
-    // After the companion object ends, before the @Inject section, add the new method:
-
+    // Define a data class for SMS messages to be processed
+    private data class SmsData(
+        val sender: String,
+        val body: String,
+        val context: Context
+    )
+    
+    // Create a dedicated CoroutineScope for the receiver with a SupervisorJob
+    // This ensures that failures in one coroutine don't affect others
+    private val receiverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    
+    // Create a channel for SMS queue processing with buffer capacity
+    private val smsProcessingChannel = Channel<SmsData>(Channel.BUFFERED)
+    
+    // Initialize the SMS processing worker
+    init {
+        // Start a single worker coroutine to process SMS messages sequentially
+        receiverScope.launch {
+            try {
+                Log.d(TAG, "Starting SMS processing worker")
+                
+                // Process SMS messages one by one from the channel
+                for (smsData in smsProcessingChannel) {
+                    try {
+                        processSmsMessage(smsData)
+                        // Add a small delay to prevent excessive CPU usage if many messages arrive
+                        delay(50)
+                    } catch (e: Exception) {
+                        // Catch exceptions for individual messages to prevent worker from stopping
+                        Log.e(TAG, "Error processing SMS in queue: ${e.javaClass.simpleName}", e)
+                        captureLog("Error in SMS processing queue: ${e.javaClass.simpleName}")
+                    }
+                }
+            } catch (e: Exception) {
+                // This should never happen since we catch exceptions inside the loop,
+                // but add as a safety net to restart the worker if needed
+                Log.e(TAG, "Critical error in SMS processing worker: ${e.javaClass.simpleName}", e)
+                captureLog("Critical error in SMS worker - restarting")
+                
+                // Restart the worker after a delay
+                delay(1000)
+                receiverScope.launch {
+                    for (smsData in smsProcessingChannel) {
+                        try {
+                            processSmsMessage(smsData)
+                            delay(50)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error in restarted worker: ${e.javaClass.simpleName}", e)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     /**
      * Improved check if a sender is from a financial institution
      * Uses multi-layered approach for greater flexibility with prefixed sender IDs
@@ -298,8 +543,7 @@ class SmsReceiver : BroadcastReceiver() {
         val normalizedSender = sender.uppercase()
         
         // Regular expression for detecting bank-like patterns with prefixes
-        val regex = Regex("^([A-Z]{2})-?([A-Z]+(?:BK|BNK|BANK|NBK|INB))$")
-        if (regex.matches(normalizedSender)) {
+        if (BANK_CODE_PATTERN.matches(normalizedSender)) {
             captureLog("Sender matched bank pattern with prefix: $sender")
             return true
         }
@@ -331,8 +575,7 @@ class SmsReceiver : BroadcastReceiver() {
         val normalizedSender = sender.uppercase()
         
         // Common prefix pattern (2-3 letters followed by hyphen)
-        val regex = Regex("^([A-Z]{2,3})-([A-Z]+(?:BK|BNK|BANK|NBK|INB|NBK|MSG))$")
-        if (regex.matches(normalizedSender)) {
+        if (FLEXIBLE_BANK_PREFIX_PATTERN.matches(normalizedSender)) {
             val parts = normalizedSender.split("-", limit = 2)
             if (parts.size == 2) {
                 val bankPart = parts[1]
@@ -389,82 +632,109 @@ class SmsReceiver : BroadcastReceiver() {
                         continue
                     }
                     
-                    // Mask sensitive data in logs
-                    val maskedBody = securityHelper.maskSensitiveData(sanitizedBody)
-                    
-                    // Log the message for debugging with masked sensitive information
-                    Log.d(TAG, "Evaluating SMS from: $sanitizedSender, body: ${maskedBody.take(50)}...")
-                    captureLog("Evaluating SMS from: $sanitizedSender, body: ${maskedBody.take(50)}...")
-                
-                    // Check if this is a transaction SMS - use original sanitized values for processing
-                    if (isTransactionSms(sanitizedSender, sanitizedBody)) {
-                        Log.d(TAG, "Transaction SMS detected!")
-                        captureLog("Transaction SMS detected!")
-                        
-                        // Parse transaction details - using sanitized values
-                        val transaction = parseTransactionSms(sanitizedSender, sanitizedBody)
-                        
-                        // Skip if we couldn't extract a valid amount
-                        if (transaction.amount == 0.0) {
-                            Log.d(TAG, "Skipping transaction with zero amount")
-                            captureLog("Skipping transaction with zero amount")
-                            continue
+                    // Add to processing queue instead of processing immediately
+                    // This prevents concurrent processing of multiple SMS messages
+                    receiverScope.launch {
+                        try {
+                            smsProcessingChannel.send(SmsData(
+                                sender = sanitizedSender,
+                                body = sanitizedBody,
+                                context = context
+                            ))
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error queuing SMS: ${e.javaClass.simpleName}", e)
+                            captureLog("Error queuing SMS: ${e.javaClass.simpleName}")
                         }
-                        
-                        // Extract reference ID for duplicate detection
-                        val referenceId = extractReferenceNumber(sanitizedBody)
-                        
-                        // Check if this is a duplicate transaction we've seen recently
-                        if (isRecentDuplicate(referenceId)) {
-                            Log.d(TAG, "Skipping duplicate transaction with reference: $referenceId")
-                            captureLog("Skipping duplicate transaction: ${transaction.merchantName}, amount: [MASKED]")
-                            continue
-                        }
-                        
-                        // Mark this transaction as processed to avoid duplicates
-                        markTransactionProcessed(referenceId)
-                        
-                        // Log the extracted details - mask merchant name for privacy
-                        Log.d(TAG, "Extracted: ${transaction.merchantName}, Amount: [MASKED]")
-                        captureLog("Extracted: ${transaction.merchantName}, Amount: [MASKED]")
-                    
-                        // Check if automatic transaction mode is enabled
-                        if (preferenceHelper.isAutoTransactionEnabled()) {
-                            // Automatically add the transaction to database
-                            Log.d(TAG, "Auto mode: Adding transaction automatically")
-                            captureLog("Auto mode: Adding transaction automatically")
-                            
-                            // Use launch to create a coroutine and call the suspend function within it
-                            CoroutineScope(Dispatchers.IO).launch {
-                                try {
-                                    // This is now properly called within a coroutine context
-                                transactionRepository.processNewTransactionSms(transaction)
-                                    Log.d(TAG, "Transaction successfully processed")
-                                    captureLog("Transaction successfully processed")
-                                } catch (e: Exception) {
-                                    // Log any errors that occur during processing
-                                    Log.e(TAG, "Error in coroutine when processing transaction: ${e.javaClass.simpleName}")
-                                    captureLog("Error in coroutine: ${e.javaClass.simpleName}")
-                                }
-                            }
-                        } else {
-                            // Show notification for manual review
-                            Log.d(TAG, "Manual mode: Showing notification for user review")
-                            captureLog("Manual mode: Showing notification for user review")
-                            NotificationHelper.showTransactionNotification(context, transaction)
-                        }
-                    } else {
-                        // Log a message indicating this SMS was not detected as a transaction
-                        Log.d(TAG, "Not a transaction SMS")
-                        captureLog("Not a transaction SMS: $sanitizedSender - ${maskedBody.take(50)}")
                     }
                 } catch (e: Exception) {
-                    // Catch and log any exceptions during SMS processing to avoid crashes
-                    // Don't log the full exception which might contain sensitive data
-                    Log.e(TAG, "Error processing SMS: ${e.javaClass.simpleName}")
-                    captureLog("Error processing SMS: ${e.javaClass.simpleName}")
+                    // Catch and log any exceptions during SMS extraction to avoid crashes
+                    Log.e(TAG, "Error extracting SMS data: ${e.javaClass.simpleName}", e)
+                    captureLog("Error extracting SMS data: ${e.javaClass.simpleName}")
                 }
             }
+        }
+    }
+    
+    /**
+     * Process a single SMS message from the queue
+     * This runs sequentially to prevent race conditions
+     */
+    private suspend fun processSmsMessage(smsData: SmsData) {
+        try {
+            val sanitizedSender = smsData.sender
+            val sanitizedBody = smsData.body
+            val context = smsData.context
+            
+            // Mask sensitive data in logs
+            val maskedBody = securityHelper.maskSensitiveData(sanitizedBody)
+            
+            // Log the message for debugging with masked sensitive information
+            Log.d(TAG, "Evaluating SMS from: $sanitizedSender, body: ${maskedBody.take(50)}...")
+            captureLog("Evaluating SMS from: $sanitizedSender, body: ${maskedBody.take(50)}...")
+            
+            // Check if this is a transaction SMS - use original sanitized values for processing
+            if (isTransactionSms(sanitizedSender, sanitizedBody)) {
+                Log.d(TAG, "Transaction SMS detected!")
+                captureLog("Transaction SMS detected!")
+                
+                // Parse transaction details - using sanitized values
+                val transaction = parseTransactionSms(sanitizedSender, sanitizedBody)
+                
+                // Skip if we couldn't extract a valid amount
+                if (transaction.amount == 0.0) {
+                    Log.d(TAG, "Skipping transaction with zero amount")
+                    captureLog("Skipping transaction with zero amount")
+                    return
+                }
+                
+                // Extract reference ID for duplicate detection
+                val referenceId = extractReferenceNumber(sanitizedBody)
+                
+                // Check if this is a duplicate transaction we've seen recently
+                if (isRecentDuplicate(referenceId)) {
+                    Log.d(TAG, "Skipping duplicate transaction with reference: $referenceId")
+                    captureLog("Skipping duplicate transaction: ${transaction.merchantName}, amount: [MASKED]")
+                    return
+                }
+                
+                // Mark this transaction as processed to avoid duplicates
+                markTransactionProcessed(referenceId)
+                
+                // Log the extracted details - mask merchant name for privacy
+                Log.d(TAG, "Extracted: ${transaction.merchantName}, Amount: [MASKED]")
+                captureLog("Extracted: ${transaction.merchantName}, Amount: [MASKED]")
+                
+                // Check if automatic transaction mode is enabled
+                if (preferenceHelper.isAutoTransactionEnabled()) {
+                    // Automatically add the transaction to database
+                    Log.d(TAG, "Auto mode: Adding transaction automatically")
+                    captureLog("Auto mode: Adding transaction automatically")
+                    
+                    try {
+                        // Now correctly called within a suspend function
+                        transactionRepository.processNewTransactionSms(transaction)
+                        Log.d(TAG, "Transaction successfully processed")
+                        captureLog("Transaction successfully processed")
+                    } catch (e: Exception) {
+                        // Log any errors that occur during processing
+                        Log.e(TAG, "Error processing transaction: ${e.javaClass.simpleName}")
+                        captureLog("Error in transaction processing: ${e.javaClass.simpleName}")
+                    }
+                } else {
+                    // Show notification for manual review
+                    Log.d(TAG, "Manual mode: Showing notification for user review")
+                    captureLog("Manual mode: Showing notification for user review")
+                    NotificationHelper.showTransactionNotification(context, transaction)
+                }
+            } else {
+                // Log a message indicating this SMS was not detected as a transaction
+                Log.d(TAG, "Not a transaction SMS")
+                captureLog("Not a transaction SMS: $sanitizedSender - ${maskedBody.take(50)}")
+            }
+        } catch (e: Exception) {
+            // Catch and log any exceptions during SMS processing to avoid crashes
+            Log.e(TAG, "Error processing SMS: ${e.javaClass.simpleName}", e)
+            captureLog("Error processing SMS: ${e.javaClass.simpleName}")
         }
     }
     
@@ -520,7 +790,7 @@ class SmsReceiver : BroadcastReceiver() {
         // STEP 1: Quick rejection patterns - filter out obviously non-transaction messages
         
         // Reject OTP messages with high confidence patterns (using word boundaries)
-        val isStrongOtpPattern = body.contains(Regex("\\botp\\b|\\bone[ -]?time[ -]?password\\b|\\bverification[ -]?code\\b|\\bsecurity[ -]?code\\b|\\bauth(?:entication)?[ -]?code\\b", RegexOption.IGNORE_CASE))
+        val isStrongOtpPattern = STRONG_OTP_PATTERN.containsMatchIn(body)
         
         if (isStrongOtpPattern) {
             Log.d(TAG, "SMS rejected: Strong OTP pattern detected")
@@ -529,7 +799,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // Check for numerical codes in the message - common in OTP texts
-        val hasNumericCode = body.contains(Regex("\\b\\d{4,8}\\b(?:(?:\\s+is|\\s+as|:)\\s+(?:your|the)\\s+(?:otp|code|password))|(?:code(?:\\s+is)?:?\\s+\\b\\d{4,8}\\b)"))
+        val hasNumericCode = NUMERIC_CODE_PATTERN.containsMatchIn(body)
         
         if (hasNumericCode) {
             Log.d(TAG, "SMS rejected: Contains numeric verification code pattern")
@@ -557,21 +827,21 @@ class SmsReceiver : BroadcastReceiver() {
         // Enhanced promotional detection for banking offers - analyze combinations of indicators
         val hasBankingPromotionalContext = 
             // Check for common promotional combinations
-            (body.contains(Regex("(?:we|bank)\\s+(?:now\\s+)?invite\\s+you", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("(?:discover|explore|know|learn|find out)\\s+(?:our|about|more)", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("(?:maintain|average|minimum)\\s+(?:monthly|quarterly|yearly)?\\s*balance", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("priority\\s+banking|banking\\s+program", RegexOption.IGNORE_CASE)) ||
+            (BANKING_PROMO_INVITE.containsMatchIn(body) ||
+            BANKING_PROMO_DISCOVER.containsMatchIn(body) ||
+            BANKING_PROMO_BALANCE.containsMatchIn(body) ||
+            BANKING_PROMO_PROGRAM.containsMatchIn(body) ||
             
             // Check for promotional URL patterns - strong indicator of promotional content
-            body.contains(Regex("(?:https?://|www\\.|bit\\.ly|tinyurl|axbk\\.io)[a-zA-Z0-9/?=&%._-]+", RegexOption.IGNORE_CASE)) ||
+            BANKING_PROMO_URL.containsMatchIn(body) ||
             
             // Banking program benefits indicators
-            body.contains(Regex("(?:enjoy|get|avail|extend)\\s+(?:the\\s+)?benefits", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("(?:dedicated|relationship)\\s+manager", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("(?:up to|upto)\\s+\\d+%\\s+off", RegexOption.IGNORE_CASE)) ||
+            BANKING_PROMO_BENEFITS.containsMatchIn(body) ||
+            BANKING_PROMO_MANAGER.containsMatchIn(body) ||
+            BANKING_PROMO_DISCOUNT.containsMatchIn(body) ||
             
             // Check for promotional verbs with service nouns
-            body.contains(Regex("(?:enjoy|get|avail|discover)\\s+(?:a|the|our|exclusive|special|premium)\\s+(?:service|feature|benefit|program|offer)", RegexOption.IGNORE_CASE))) &&
+            BANKING_PROMO_SERVICE.containsMatchIn(body)) &&
             
             // Combined with amount patterns that are likely promotional, not transactional
             (body.contains(Regex("(?:upto|up to|as much as)\\s+(?:\\d+%|Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE)) ||
@@ -579,28 +849,27 @@ class SmsReceiver : BroadcastReceiver() {
             body.contains(Regex("(?:maintain)\\s+(?:an?|the)?\\s+(?:average|minimum)\\s+(?:monthly|quarterly)?\\s+balance\\s+of\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE)))
         
         // Enhanced check for balance requirement format (reliably identifies banking promotional messages)
-        val hasBalanceRequirementFormat = 
-            body.contains(Regex("(?:maintain|average|minimum)\\s+(?:monthly|quarterly)?\\s+balance\\s+(?:of|:)\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("(?:AMB|Average Monthly Balance)\\s+(?:of|:)?\\s*(?:Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE))
+        val hasBalanceRequirementFormat = BALANCE_REQUIREMENT_FORMAT.containsMatchIn(body) || 
+            AMB_PATTERN.containsMatchIn(body)
         
         // Specific check for loan offers with amount patterns - these are NOT transactions
         val isLoanOfferMessage = 
-            (body.contains(Regex("(?:personal|home|car|instant|quick|cash)\\s+loan", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("loan\\s+(?:of|at|with|up to|upto)", RegexOption.IGNORE_CASE)) ||
+            (LOAN_TYPE_PATTERN.containsMatchIn(body) ||
+            LOAN_WITH_PATTERN.containsMatchIn(body) ||
             // Add check for "Rs X Lacs/Lakhs/L" pattern which is very common in loan offers
-            body.contains(Regex("(?:Rs\\.?|INR|₹)\\s*\\d+\\s*(?:lac|lakh|lacs|lakhs|l\\b)", RegexOption.IGNORE_CASE))) &&
+            LOAN_AMOUNT_PATTERN.containsMatchIn(body)) &&
             // Combined with either amount patterns, promotional terms, or URLs
-            (body.contains(Regex("(?:Rs\\.?|INR|₹)\\s*\\d+\\s*(?:lac|lakh|crore)", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("exclusive\\s+rates|no\\s+paperwork|instant\\s+approval|apply\\s+now", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("(?:click|visit)\\s*(?::|->)?\\s*(?:https?://|www\\.|http)", RegexOption.IGNORE_CASE)))
-        
+            (LOAN_LARGE_AMOUNT.containsMatchIn(body) ||
+            LOAN_TERMS_PATTERN.containsMatchIn(body) ||
+            LOAN_URL_PATTERN.containsMatchIn(body))
+            
         // Additional check for promotional messages with "Get Cash" that aren't ATM withdrawals
         val isGetCashPromotionalMessage =
             body.contains(Regex("get\\s+cash", RegexOption.IGNORE_CASE)) &&
-            !body.contains(Regex("\\b(?:withdraw|withdrawal|atm|transaction|debited)\\b", RegexOption.IGNORE_CASE)) &&
+            !DEBIT_PATTERN.containsMatchIn(body) &&
             (body.contains(Regex("(?:exclusive|special|offer|instant|apply|click)", RegexOption.IGNORE_CASE)) ||
-            body.contains(Regex("(?:https?://|www\\.|bit\\.ly|tinyurl)[a-zA-Z0-9/?=&%._-]+", RegexOption.IGNORE_CASE)))
-        
+            BANKING_PROMO_URL.containsMatchIn(body))
+            
         if (isPromotionalMessage || hasBankingPromotionalContext || isLoanOfferMessage || isGetCashPromotionalMessage) {
             Log.d(TAG, "SMS rejected: Appears to be a promotional message")
             captureLog("SMS rejected: Appears to be a promotional or loan offer message")
@@ -620,9 +889,9 @@ class SmsReceiver : BroadcastReceiver() {
         // Enhanced credit transaction detection with more accurate pattern matching
         val isCreditOnlyTransaction = 
             // Message contains credit-related terms 
-            body.contains(Regex("\\b(?:credited|received|deposited|added to|inward)\\b", RegexOption.IGNORE_CASE)) && 
+            CREDIT_PATTERN.containsMatchIn(body) && 
             // AND does NOT contain debit-related terms (critical for dual-mention transactions)
-            !body.contains(Regex("\\b(?:debited|debit|paid|spent|payment|purchase|dr\\.?|withdraw|sent)\\b", RegexOption.IGNORE_CASE))
+            !DEBIT_PATTERN.containsMatchIn(body)
         
         // For dual-mention transactions (common in ICICI and other banks): 
         // "Account debited ... recipient credited" - these ARE debit transactions
@@ -647,32 +916,29 @@ class SmsReceiver : BroadcastReceiver() {
         
         // STEP 3: Strong transaction indicator patterns - check for reliable transaction signals
         
-        // Check if this message has balance requirement format (common in banking program promotions)
-        // val hasBalanceRequirementFormat = body.contains(Regex("(?:maintain|average|minimum)\\s+(?:monthly|quarterly)?\\s+balance\\s+(?:of|:)\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,]+", RegexOption.IGNORE_CASE))
-        
         // If message has balance requirement format but not clear transaction indicators, reject it
-        if (hasBalanceRequirementFormat && !body.contains(Regex("\\b(?:debited|debit|paid|sent|spent|payment|purchase|transaction|txn)\\b", RegexOption.IGNORE_CASE))) {
+        if (hasBalanceRequirementFormat && !DEBIT_KEYWORDS.containsMatchIn(body)) {
             Log.d(TAG, "SMS rejected: Contains balance requirement format, not a transaction")
             captureLog("SMS rejected: Contains balance requirement format, not a transaction")
             return false
         }
         
         // Check for strong debit indicators with word boundary precision
-        val hasStrongDebitIndicator = body.contains(Regex("\\b(?:debited|debit\\s+card|debit\\s+from|payment\\s+made|paid|purchase|spent)\\b", RegexOption.IGNORE_CASE))
+        val hasStrongDebitIndicator = STRONG_DEBIT_INDICATOR.containsMatchIn(body)
         
         // Check for amount patterns with currency symbols - highly reliable indicator of transactions
-        val hasAmountWithCurrency = body.contains(Regex("(?:Rs\\.?|INR|₹|USD|\\$)\\s*[\\d,]+(?:\\.\\d{1,2})?", RegexOption.IGNORE_CASE))
+        val hasAmountWithCurrency = AMOUNT_WITH_CURRENCY.containsMatchIn(body)
         
         // Check for word "amount" near numbers - strong transaction indicator
-        val hasAmountKeyword = body.contains(Regex("(?:amount|amt)(?:\\s+(?:of|:))?\\s+(?:Rs\\.?|INR|₹|USD|\\$)?\\s*[\\d,]+(?:\\.\\d{1,2})?", RegexOption.IGNORE_CASE))
+        val hasAmountKeyword = AMOUNT_KEYWORD.containsMatchIn(body)
         
         // Check for transaction IDs/reference numbers - reliable indicator of actual transactions
-        val hasTransactionReference = body.contains(Regex("(?:transaction|txn|ref)(?:\\s+(?:id|no|number|:))?\\s*[:\\s]?\\s*[a-zA-Z0-9]+", RegexOption.IGNORE_CASE))
+        val hasTransactionReference = TRANSACTION_REFERENCE.containsMatchIn(body)
         
         // STEP 4: Check for merchant indicators - very reliable for transaction detection
         
         // Look for merchant name indicators
-        val hasMerchantIndicator = body.contains(Regex("(?:at|@|to|with|towards|through|merchant|store|shop)\\s+[A-Z][A-Za-z0-9\\s.&'-]+", RegexOption.IGNORE_CASE))
+        val hasMerchantIndicator = MERCHANT_INDICATOR.containsMatchIn(body)
         
         // Check for known merchants in body
         val hasKnownMerchant = KNOWN_MERCHANTS.any { merchant ->
@@ -683,7 +949,7 @@ class SmsReceiver : BroadcastReceiver() {
         // STEP 5: Check for card usage indicators
         
         // Card usage is a very reliable transaction indicator
-        val hasCardUsageIndicator = body.contains(Regex("(?:card\\s+(?:ending|[Xx*]{4,6})\\s+(?:with\\s+)?\\d{4}|card\\s+used|card\\s+transaction|card\\s+purchase|POS\\s+transaction)", RegexOption.IGNORE_CASE))
+        val hasCardUsageIndicator = CARD_USAGE_INDICATOR.containsMatchIn(body)
         
         // STEP 6: Decision matrix - combine indicators for final decision
         
@@ -721,14 +987,10 @@ class SmsReceiver : BroadcastReceiver() {
         // Final check for amounts with debit-related keywords
         // Enhanced amount pattern detection
         val amountPatterns = listOf(
-            // Common Indian formats
-            Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,]+(?:\\.\\d{1,2})?"),
-            // Amounts without currency symbol but with word boundaries
-            Regex("\\b\\d{1,3}(?:,\\d{3})*(?:\\.\\d{1,2})?\\b"),
-            // "Sent/paid/debited X.XX" pattern - with word boundaries for more precision
-            Regex("\\b(?:sent|paid|debited|deducted|withdrew)\\s+(?:Rs\\.?|INR|₹)?\\s*\\d+(?:\\.\\d{1,2})?\\b"),
-            // Amount followed by "from" or "to" - strong transaction indicator
-            Regex("\\b\\d+(?:\\.\\d{1,2})?\\s+(?:from|to|by)\\b")
+            AMOUNT_PATTERN_1,
+            AMOUNT_PATTERN_2,
+            AMOUNT_PATTERN_3,
+            AMOUNT_PATTERN_4
         )
         
         // Check for both amount patterns and debit indicators
@@ -769,7 +1031,7 @@ class SmsReceiver : BroadcastReceiver() {
             !isPromotionalMessage && !hasBankingPromotionalContext && !hasBalanceRequirementFormat &&
             !isLoanOfferMessage && !isGetCashPromotionalMessage &&
             // Additional safety check - large amounts with "Lacs/Lakhs/Crores" are likely offers, not transactions
-            !body.contains(Regex("(?:Rs\\.?|INR|₹)\\s*\\d+\\s*(?:lac|lakh|crore)s?", RegexOption.IGNORE_CASE))) {
+            !LOAN_LARGE_AMOUNT.containsMatchIn(body)) {
             
             Log.d(TAG, "SMS accepted: Contains amount pattern from official bank sender")
             captureLog("SMS accepted: Contains amount pattern from official bank sender")
@@ -789,44 +1051,11 @@ class SmsReceiver : BroadcastReceiver() {
     private fun parseTransactionSms(sender: String, body: String): TransactionSms {
         // Extract amount - improved with more comprehensive pattern matching
         // Handles various currency formats (₹, Rs., INR, USD, $) with proper grouping
-        val primaryAmountRegex = Regex(
-            "(?:" +
-                // Indian currency formats with multiple variations
-                "(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)|" +
-                
-                // "Amount/AMT/etc of Rs X" format with optional 'of'
-                "(?:amount|amt|charge|bill|fee)\\s+(?:of\\s+)?(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)|" +
-                
-                // USD with possible INR conversion - handles parentheses
-                "(?:USD|\\$)\\s*([\\d,.]+)(?:\\s*(?:\\((?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)\\))?)|" +
-                
-                // Verb + amount patterns (spent/paid/etc)
-                "(?:spent|paid|send|sent|paying|received|credited|debited|deducted|withdrawn)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)|" +
-                
-                // Preposition + amount patterns
-                "(?:for|of|with|worth)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)|" +
-                
-                // "Sent/Paid X from/to" format (captures direction)
-                "(?:sent|paid)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s+(?:from|to)|" +
-                
-                // "INR X.XX is debited" format (common in some banks)
-                "(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s+(?:is|has been|was|were)\\s+(?:debited|deducted|withdrawn|sent|paid)|" +
-                
-                // Value X.XX followed by DR (Debit) indicator
-                "(?:val|value|amt|amount)?\\s*(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)\\s+DR|" +
-                
-                // X.XX- format (negative amount with trailing minus sign)
-                "([\\d,]+(?:\\.\\d{1,2})?)-(?:\\s|$)|" +
-                
-                // In some messages, the amount is isolated within quotes
-                "['\"](?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)['\"]" +
-            ")"
-        )
         
         var amount = 0.0
         
         // Try primary amount regex first
-        val primaryMatch = primaryAmountRegex.find(body)
+        val primaryMatch = PRIMARY_AMOUNT_REGEX.find(body)
         if (primaryMatch != null) {
             // Try all captured groups for the amount
             for (i in 1 until primaryMatch.groupValues.size) {
@@ -844,27 +1073,7 @@ class SmsReceiver : BroadcastReceiver() {
         
         // If amount is still 0, try the secondary regex
         if (amount == 0.0) {
-            val secondaryAmountRegex = Regex(
-                // Enhanced patterns for difficult-to-extract amounts
-                "(?:" +
-                    // Numbers that look like amounts (on boundaries with decimal points)
-                    "(?<=\\s|^)(?:Rs\\.?|INR|₹)?\\s*(\\d[\\d,]+(?:\\.\\d{1,2})?)(?=\\s|$)|" +
-                    
-                    // Numbers with exactly 2 decimal places (classic currency format)
-                    "(?<=\\s|^)(\\d+\\.\\d{2})(?=\\s|$)|" +
-                    
-                    // Any number after currency symbol (even without space)
-                    "(?:Rs|INR|₹)(?:\\s*)([\\d,]+(?:\\.\\d{1,2})?)|" +
-                    
-                    // Tightly-formatted amounts (no space between currency and digits)
-                    "(?:Rs|INR|₹)([\\d,]+(?:\\.\\d{1,2})?)|" +
-                    
-                    // Balance after transaction (extract both deducted amount and new balance)
-                    "(?:balance|bal)\\s+(?:is|:)\\s+(?:Rs\\.?|INR|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)" +
-                ")"
-            )
-            
-            val secondaryMatch = secondaryAmountRegex.find(body)
+            val secondaryMatch = SECONDARY_AMOUNT_REGEX.find(body)
             if (secondaryMatch != null) {
                 for (i in 1 until secondaryMatch.groupValues.size) {
                     val value = secondaryMatch.groupValues[i]
@@ -882,8 +1091,7 @@ class SmsReceiver : BroadcastReceiver() {
         // Last resort: extract all plausible amounts and choose most likely one
         if (amount == 0.0) {
             // All possible amounts in the SMS
-            val numberPattern = Regex("\\b(\\d+(?:,\\d+)*(?:\\.\\d+)?)\\b")
-            val allAmounts = numberPattern.findAll(body)
+            val allAmounts = NUMBER_PATTERN.findAll(body)
                 .map { 
                     val rawValue = it.groupValues[1]
                     val parsedValue = rawValue.replace(",", "").toDoubleOrNull() ?: 0.0
@@ -912,16 +1120,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // Properly determine transaction type (expense/debit vs income/credit)
-        val isDebitTransaction = body.contains("debited", ignoreCase = true) || 
-                               body.contains("spent", ignoreCase = true) || 
-                               body.contains("debit", ignoreCase = true) || 
-                               body.contains("dr", ignoreCase = true) ||
-                               body.contains("withdrawn", ignoreCase = true) ||
-                               body.contains("sent", ignoreCase = true) ||
-                               body.contains("paid", ignoreCase = true) ||
-                               body.contains("purchase", ignoreCase = true) ||
-                               body.contains("payment", ignoreCase = true) ||
-                               body.contains("deducted", ignoreCase = true)
+        val isDebitTransaction = DEBIT_INDICATOR_WORDS.containsMatchIn(body)
         
         // Make amount negative ONLY for debit transactions 
         if (isDebitTransaction && amount > 0) {
@@ -946,20 +1145,8 @@ class SmsReceiver : BroadcastReceiver() {
      * Extracts a reference number from the transaction SMS to help identify duplicate transactions
      */
     private fun extractReferenceNumber(body: String): String {
-        // Common patterns for transaction reference numbers
-        val referencePatterns = listOf(
-            // Common reference number formats with labels
-            Regex("(?:ref|reference|txn|transaction|utr|rrn|rrn no|ref no|txn id|upi ref|imps|neft|rtgs)[#:.-]?\\s*([a-zA-Z0-9]{6,})", RegexOption.IGNORE_CASE),
-            
-            // Reference in UPI format (often starts with numbers)
-            Regex("(?:upi:)([0-9]{6,})", RegexOption.IGNORE_CASE),
-            
-            // Standalone alphanumeric code that looks like a reference
-            Regex("\\b([A-Z0-9]{6,})\\b")
-        )
-        
         // Try each pattern in order of priority
-        for (pattern in referencePatterns) {
+        for (pattern in REFERENCE_PATTERNS) {
             val match = pattern.find(body)
             if (match != null) {
                 return match.groupValues[1].trim()
@@ -968,12 +1155,11 @@ class SmsReceiver : BroadcastReceiver() {
         
         // If no reference found, create a hash from the essential transaction details
         // This helps identify duplicates even without an explicit reference number
-        val amountMatch = Regex("(?:Rs\\.?|INR|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)").find(body)
+        val amountMatch = AMOUNT_PATTERN_1.find(body)
         val amount = amountMatch?.groupValues?.get(1)?.replace(",", "") ?: ""
         
         // Extract date and time if present (for more precise fingerprinting)
-        val dateTimePattern = Regex("\\b(\\d{1,2}[-/.]\\d{1,2}[-/.]\\d{2,4})(?:\\s*,?\\s*(\\d{1,2}:\\d{1,2}(?::\\d{1,2})?))?\\b")
-        val dateTimeMatch = dateTimePattern.find(body)
+        val dateTimeMatch = DATE_TIME_PATTERN.find(body)
         val dateTimeStr = if (dateTimeMatch != null) {
             val date = dateTimeMatch.groupValues[1]
             val time = dateTimeMatch.groupValues[2]
@@ -1005,13 +1191,8 @@ class SmsReceiver : BroadcastReceiver() {
         
         // These patterns have the highest confidence and override all others
         
-        // Common pattern constants to improve consistency
-        val namePattern = "[A-Za-z][A-Za-z0-9\\s&'\\.-]{2,48}"
-        val boundaryPatterns = "(?:\\s+(?:on|dt|ref|upi|not|bal|\\.)|\\s|\\.|,|;\\n|$)"
-        
         // 1. High priority "To [NAME]" pattern (works for many banks)
-        val generalToPattern = Regex("(?:to|towards)\\s+($namePattern)$boundaryPatterns", RegexOption.IGNORE_CASE)
-        generalToPattern.find(body)?.let {
+        GENERAL_TO_PATTERN.find(body)?.let {
             val candidate = it.groupValues[1].trim()
             if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
@@ -1021,8 +1202,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // 2. Axis Bank UPI/P2A pattern (highest priority)
-        val axisUpiPattern = Regex("UPI\\/P2A\\/\\d+\\/($namePattern)", RegexOption.IGNORE_CASE)
-        axisUpiPattern.find(body)?.let {
+        AXIS_UPI_PATTERN.find(body)?.let {
             val candidate = it.groupValues[1].trim()
             if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
@@ -1033,8 +1213,7 @@ class SmsReceiver : BroadcastReceiver() {
         
         // 3. ICICI Bank "[NAME] credited" pattern (highest priority)
         // Enhanced to handle name formats with or without boundaries
-        val iciciCreditedPattern = Regex("([A-Z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
-        iciciCreditedPattern.find(body)?.let {
+        ICICI_CREDITED_PATTERN.find(body)?.let {
             val candidate = it.groupValues[1].trim()
             if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
@@ -1045,8 +1224,7 @@ class SmsReceiver : BroadcastReceiver() {
         
         // New precise pattern for ICICI format without semicolon (highest priority)
         // Targets the format "on DD-MMM-YY NAME credited" seen in the logs
-        val iciciPrecisePattern = Regex("on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}\\s+([A-Z][A-Za-z]+(?:\\s+[A-Za-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
-        iciciPrecisePattern.find(body)?.let {
+        ICICI_PRECISE_PATTERN.find(body)?.let {
             val candidate = it.groupValues[1].trim()
             if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
@@ -1059,8 +1237,7 @@ class SmsReceiver : BroadcastReceiver() {
         if (sender.contains("ICICI", ignoreCase = true) || body.contains("ICICI", ignoreCase = true)) {
             // Direct extraction for the exact format in the logs
             // This specifically targets formats like "ICICI Bank Acct XX804 debited for Rs 5.00 on 15-Apr-25 SHIVAM PALIWAL credited"
-            val iciciExactLogPattern = Regex("debited for\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,.]+\\s+on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}\\s+([A-Z][A-Z]*[a-z]+(?:\\s+[A-Z][a-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
-            iciciExactLogPattern.find(body)?.let {
+            ICICI_EXACT_LOG_PATTERN.find(body)?.let {
                 val candidate = it.groupValues[1].trim() 
                 if (isValidMerchantCandidate(candidate, 50, body)) {
                     merchantName = candidate
@@ -1070,8 +1247,7 @@ class SmsReceiver : BroadcastReceiver() {
             }
             
             // Format with merchant name and ID: "on DATE; NAME ID credited"
-            val iciciMerchantIdPattern = Regex("on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}(?:;|:)\\s*([A-Za-z][A-Za-z0-9\\s&'\\.-]+?)\\s+([0-9]{4,})\\s+credited", RegexOption.IGNORE_CASE)
-            iciciMerchantIdPattern.find(body)?.let {
+            ICICI_MERCHANT_ID_PATTERN.find(body)?.let {
                 // Combine merchant name and ID for better identification
                 val nameComponent = it.groupValues[1].trim()
                 val merchantId = it.groupValues[2].trim()
@@ -1086,8 +1262,7 @@ class SmsReceiver : BroadcastReceiver() {
             
             // Super aggressive pattern - directly look for capitalized names before "credited"
             // This is highly targeted at the exact format we're seeing in the logs
-            val wordBeforeCreditedPattern = Regex("\\b([A-Z][A-Za-z]+(?:\\s+[A-Z][A-Za-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
-            wordBeforeCreditedPattern.findAll(body).toList().lastOrNull()?.let {
+            WORD_BEFORE_CREDITED_PATTERN.findAll(body).toList().lastOrNull()?.let {
                 val candidate = it.groupValues[1].trim()
                 if (candidate.length >= 4 && isValidMerchantCandidate(candidate, 50, body)) {
                     merchantName = candidate
@@ -1098,8 +1273,7 @@ class SmsReceiver : BroadcastReceiver() {
             
             // Keep original format with semicolon for backward compatibility
             // Format with semicolon: "debited for Rs X on DATE; NAME credited"
-            val iciciSemicolonPattern = Regex("debited for\\s+(?:Rs\\.?|INR|₹)\\s*[\\d,.]+\\s+on[^;]*;\\s*([A-Z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
-            iciciSemicolonPattern.find(body)?.let {
+            ICICI_SEMICOLON_PATTERN.find(body)?.let {
                 val candidate = it.groupValues[1].trim() 
                 if (isValidMerchantCandidate(candidate, 50, body)) {
                     merchantName = candidate
@@ -1110,8 +1284,7 @@ class SmsReceiver : BroadcastReceiver() {
             
             // Add a fallback pattern that tries to extract any name right before "credited"
             // This is a more aggressive approach but with proper validation should be reliable
-            val iciciAggressivePattern = Regex("(?:Rs\\.?|INR|₹)\\s*[\\d,.]+(?:.*?)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)\\s+credited", RegexOption.IGNORE_CASE)
-            iciciAggressivePattern.find(body)?.let {
+            ICICI_AGGRESSIVE_PATTERN.find(body)?.let {
                 val candidate = it.groupValues[1].trim()
                 if (isValidMerchantCandidate(candidate, 50, body)) {
                     merchantName = candidate
@@ -1122,8 +1295,7 @@ class SmsReceiver : BroadcastReceiver() {
             
             // General fallback pattern for any format where a name appears before "credited"
             // This will catch various ICICI formats we haven't specifically handled
-            val iciciGeneralPattern = Regex("on\\s+\\d{1,2}-[A-Za-z]{3}-\\d{2}[^;]*;\\s*([A-Za-z][A-Za-z0-9\\s&'\\.-]{2,50})\\s+credited", RegexOption.IGNORE_CASE)
-            iciciGeneralPattern.find(body)?.let {
+            ICICI_GENERAL_PATTERN.find(body)?.let {
                 val candidate = it.groupValues[1].trim()
                 if (isValidMerchantCandidate(candidate, 50, body)) {
                     merchantName = candidate
@@ -1134,8 +1306,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // 4. General "sent to/paid to [NAME]" pattern (works across many banks)
-        val generalSentToPattern = Regex("(?:sent|paid|transfer(?:red)?)\\s+(?:to|from)\\s+($namePattern)(?:\\s+(?:on|dt|via|UPI|Ref|ref)|\\s|\\.|,|;|$|\\n)", RegexOption.IGNORE_CASE)
-        generalSentToPattern.find(body)?.let {
+        GENERAL_SENT_TO_PATTERN.find(body)?.let {
             val candidate = it.groupValues[1].trim()
             if (isValidMerchantCandidate(candidate, 40, body)) {
                 merchantName = candidate
@@ -1145,8 +1316,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // 5. Common UPI reference format (works for many UPI transactions)
-        val upiRefPattern = Regex("UPI(?:\\:|\\s+Ref)\\s*\\d+\\.\\s*($namePattern)", RegexOption.IGNORE_CASE)
-        upiRefPattern.find(body)?.let {
+        UPI_REF_PATTERN.find(body)?.let {
             val candidate = it.groupValues[1].trim()
             if (isValidMerchantCandidate(candidate, 50, body)) {
                 merchantName = candidate
@@ -1156,7 +1326,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // 6. Special handling for SMS BLOCK patterns - extract from text before the block instruction
-        if (body.contains(Regex("SMS\\s+BLOCK", RegexOption.IGNORE_CASE))) {
+        if (SMS_BLOCK_TEXT.containsMatchIn(body)) {
             // Find text before the SMS BLOCK instruction
             val blockIndex = lowerBody.indexOf("sms block")
             if (blockIndex > 20) { // Ensure there's enough text before the SMS BLOCK
@@ -1164,8 +1334,7 @@ class SmsReceiver : BroadcastReceiver() {
                 
                 // Try to find a name pattern in the text before SMS BLOCK
                 // First look for a pattern like "NAME credited"
-                val creditedBeforeBlockPattern = Regex("($namePattern)\\s+credited", RegexOption.IGNORE_CASE)
-                creditedBeforeBlockPattern.find(beforeBlock)?.let {
+                ICICI_CREDITED_PATTERN.find(beforeBlock)?.let {
                     val candidate = it.groupValues[1].trim()
                     if (isValidMerchantCandidate(candidate, 50, beforeBlock)) {
                         merchantName = candidate
@@ -1175,8 +1344,7 @@ class SmsReceiver : BroadcastReceiver() {
                 }
                 
                 // Then try to find a "to NAME" pattern
-                val toBeforeBlockPattern = Regex("to\\s+($namePattern)$boundaryPatterns", RegexOption.IGNORE_CASE)
-                toBeforeBlockPattern.find(beforeBlock)?.let {
+                GENERAL_TO_PATTERN.find(beforeBlock)?.let {
                     val candidate = it.groupValues[1].trim()
                     if (isValidMerchantCandidate(candidate, 50, beforeBlock)) {
                         merchantName = candidate
@@ -1188,15 +1356,14 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // 7. Special handling for SMS BLOCKUPI patterns (specific to Axis Bank)
-        if (body.contains(Regex("SMS\\s+BLOCKUPI", RegexOption.IGNORE_CASE))) {
+        if (SMS_BLOCKUPI_TEXT.containsMatchIn(body)) {
             // Find text before the SMS BLOCKUPI instruction
             val blockIndex = lowerBody.indexOf("sms blockupi")
             if (blockIndex > 20) { // Ensure there's enough text before the SMS BLOCKUPI
                 val beforeBlock = body.substring(0, blockIndex)
                 
                 // First try to find UPI/P2A pattern which is very reliable
-                val axisP2APattern = Regex("UPI\\/P2A\\/\\d+\\/($namePattern)", RegexOption.IGNORE_CASE)
-                axisP2APattern.find(beforeBlock)?.let {
+                AXIS_UPI_PATTERN.find(beforeBlock)?.let {
                     val candidate = it.groupValues[1].trim()
                     if (isValidMerchantCandidate(candidate, 50, beforeBlock)) {
                         merchantName = candidate
@@ -1206,8 +1373,7 @@ class SmsReceiver : BroadcastReceiver() {
                 }
                 
                 // Try to find any capitalized name pattern as fallback
-                val capitalizedNamePattern = Regex("\\b([A-Z][a-z]{2,}(?:\\s+[A-Z][a-z]+){0,3})\\b")
-                val matches = capitalizedNamePattern.findAll(beforeBlock).toList()
+                val matches = CAPITALIZED_NAME_PATTERN.findAll(beforeBlock).toList()
                 if (matches.isNotEmpty()) {
                     // Take the last capitalized name as it's likely to be the merchant
                     val candidate = matches.last().groupValues[1].trim()
@@ -1385,7 +1551,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // Filter out SMS BLOCK related text if it somehow got included
-        if (name.contains("SMS BLOCK", ignoreCase = true) || name.contains("BLOCKUPI", ignoreCase = true)) {
+        if (SMS_BLOCK_TEXT.containsMatchIn(name) || SMS_BLOCKUPI_TEXT.containsMatchIn(name)) {
             // Extract the part before SMS BLOCK
             val blockIndex = name.indexOf("SMS", ignoreCase = true)
             if (blockIndex > 2) {
@@ -1397,8 +1563,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // Special handling for account numbers
-        val accountPattern = Regex("(?:a/c|account|ac)\\s*(?:no\\.?)?\\s*(?:x+|\\*+)?(\\d+)", RegexOption.IGNORE_CASE)
-        accountPattern.find(name)?.let {
+        ACCOUNT_PATTERN.find(name)?.let {
             val accountNum = it.groupValues[1].trim()
             if (accountNum.isNotEmpty()) {
                 return "Account ${accountNum.takeLast(4)}" // Show last 4 digits only
@@ -1446,10 +1611,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         // Detect if this might be a person name rather than a business
-        val isProbablyPerson = !name.contains(
-            Regex("\\b(?:ltd|limited|pvt|private|services|systems|corporation|solutions|technologies|store|shop|mall|center)\\b", 
-            RegexOption.IGNORE_CASE)
-        )
+        val isProbablyPerson = !BUSINESS_TYPE_PATTERN.containsMatchIn(name)
         
         // For person names, preserve more of the original format
         if (isProbablyPerson) {
@@ -1470,26 +1632,8 @@ class SmsReceiver : BroadcastReceiver() {
         var cleanName = name
         
         // STEP 1: Remove common noise words and patterns with word boundaries
-        val noisePatterns = listOf(
-            // Business types and suffixes
-            "\\b(?:ltd|limited|pvt|private|india|services|systems|corporation|solutions|international|technologies)\\b",
-            
-            // Transaction-related noise
-            "\\b(?:bal|balance|bal[:\\s]|ref|refno|your upi|upi ref|not u|not you|fwd|info|reference|txn)\\b",
-            
-            // Payment method noise
-            "\\b(?:ecom|ecom-|pos\\s|pos-|via|using|through)\\b",
-            
-            // Common senders and SMS block-related terms
-            "\\b(?:hdfc|sbi|icici|axis|kotak|sms|block|cust|id|call|dial)\\b",
-            
-            // Phone numbers and instruction text
-            "\\b\\d{10,}\\b", "\\b\\d{5,}\\s+to\\s+\\d{5,}\\b"
-        )
-        
-        // Apply each noise pattern with case insensitivity
-        for (pattern in noisePatterns) {
-            cleanName = cleanName.replace(Regex(pattern, RegexOption.IGNORE_CASE), " ")
+        for (pattern in NOISE_PATTERNS) {
+            cleanName = cleanName.replace(pattern, " ")
         }
         
         // STEP 2: Remove common transaction patterns
@@ -1498,7 +1642,7 @@ class SmsReceiver : BroadcastReceiver() {
         cleanName = cleanName.replace(Regex("\\b[A-Z0-9]{6,}\\b"), "")
         
         // Remove dates in common formats (DD/MM/YY, etc.)
-        cleanName = cleanName.replace(Regex("\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}\\b"), "")
+        cleanName = cleanName.replace(DATE_TIME_PATTERN, "")
         
         // STEP 3: Clean up special characters and formatting issues
         
@@ -1555,7 +1699,7 @@ class SmsReceiver : BroadcastReceiver() {
                     else -> ""
                 }
             }
-                } else {
+        } else {
             // Fix inconsistent capitalization for existing mixed-case words
             // This improves names that have random capitalization patterns
             cleanName = cleanName.split(" ").joinToString(" ") { word ->
@@ -1583,19 +1727,7 @@ class SmsReceiver : BroadcastReceiver() {
         val lowerCandidate = candidate.lowercase()
         
         // Check for common non-merchant terms
-        val nonMerchantTerms = listOf(
-            "account", "customer", "block", "sms", "cust id", "call", "your a/c", 
-            "this is", "dial", "reference", "ref", "txn", "transaction", 
-            "statement", "for", "net banking", "upi ref", "to a/c", "a/c no", 
-            "account no", "balance", "bal", "not you", "msg", "banking", "info",
-            "dispute", "complaint", "query", "detail", "amount", "acct", "help",
-            "upi id", "vpa", "on", "dt", "please", "as per", "request", "www",
-            "http", "avl bal", "password", "phone", "mobile", "email", "sms",
-            "code", "otp", "verify", "confirmation", "ticket", "application"
-        )
-        
-        // Check if candidate contains any non-merchant term as a complete word
-        for (term in nonMerchantTerms) {
+        for (term in NON_MERCHANT_TERMS) {
             val termPattern = Regex("\\b$term\\b", RegexOption.IGNORE_CASE)
             if (termPattern.containsMatchIn(lowerCandidate)) {
                 captureLog("Rejected merchant candidate '$candidate' - contains non-merchant term '$term'")

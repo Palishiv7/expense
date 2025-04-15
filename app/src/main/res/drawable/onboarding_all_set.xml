@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    
+    <!-- Background Circle -->
+    <path
+        android:fillColor="#E8F5E9"
+        android:pathData="M120,120m-120,0a120,120 0,1 1,240 0a120,120 0,1 1,-240 0" />
+    
+    <!-- Success Icon -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M120,100m-60,0a60,60 0,1 1,120 0a60,60 0,1 1,-120 0" />
+    
+    <!-- Checkmark -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M100,100L115,115L140,85" 
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    
+    <!-- Analytics Bar 1 -->
+    <path
+        android:fillColor="#81C784"
+        android:pathData="M60,180L90,180L90,200L60,200Z" />
+    
+    <!-- Analytics Bar 2 -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M100,160L130,160L130,200L100,200Z" />
+    
+    <!-- Analytics Bar 3 -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M140,170L170,170L170,200L140,200Z" />
+    
+    <!-- Coins -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M180,180m-15,0a15,15 0,1 1,30 0a15,15 0,1 1,-30 0" />
+    
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M180,165l0,30a15,15 0,0 0,0 -30z" />
+    
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M190,165m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0" />
+    
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M190,155l0,20a10,10 0,0 0,0 -20z" />
+</vector> 

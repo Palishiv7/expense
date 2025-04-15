@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    
+    <!-- Background Circle -->
+    <path
+        android:fillColor="#E1F5FE"
+        android:pathData="M120,120m-120,0a120,120 0,1 1,240 0a120,120 0,1 1,-240 0" />
+    
+    <!-- Phone Shape -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M90,50L150,50A10,10 0,0 1,160 60L160,180A10,10 0,0 1,150 190L90,190A10,10 0,0 1,80 180L80,60A10,10 0,0 1,90 50z" />
+    
+    <!-- Phone Screen -->
+    <path
+        android:fillColor="#E0E0E0"
+        android:pathData="M95,60L145,60A5,5 0,0 1,150 65L150,165A5,5 0,0 1,145 170L95,170A5,5 0,0 1,90 165L90,65A5,5 0,0 1,95 60z" />
+    
+    <!-- Home Button -->
+    <path
+        android:fillColor="#BDBDBD"
+        android:pathData="M120,180m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+    
+    <!-- Message Bubble 1 -->
+    <path
+        android:fillColor="#2196F3"
+        android:pathData="M125,80L140,80A5,5 0,0 1,145 85L145,100A5,5 0,0 1,140 105L125,105A5,5 0,0 1,120 100L120,95L115,100L120,90L120,85A5,5 0,0 1,125 80z" />
+    
+    <!-- Message Bubble 2 -->
+    <path
+        android:fillColor="#81D4FA"
+        android:pathData="M115,115L100,115A5,5 0,0 1,95 110L95,95A5,5 0,0 1,100 90L115,90A5,5 0,0 1,120 95L120,100L125,95L120,105L120,110A5,5 0,0 1,115 115z" />
+    
+    <!-- Text Lines in Bubbles -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M128,88L137,88A2,2 0,0 1,139 90L139,90A2,2 0,0 1,137 92L128,92A2,2 0,0 1,126 90L126,90A2,2 0,0 1,128 88z" />
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M128,95L135,95A2,2 0,0 1,137 97L137,97A2,2 0,0 1,135 99L128,99A2,2 0,0 1,126 97L126,97A2,2 0,0 1,128 95z" />
+    
+    <path
+        android:fillColor="#0D47A1"
+        android:pathData="M103,96L112,96A2,2 0,0 1,114 98L114,98A2,2 0,0 1,112 100L103,100A2,2 0,0 1,101 98L101,98A2,2 0,0 1,103 96z" />
+    
+    <path
+        android:fillColor="#0D47A1"
+        android:pathData="M103,103L109,103A2,2 0,0 1,111 105L111,105A2,2 0,0 1,109 107L103,107A2,2 0,0 1,101 105L101,105A2,2 0,0 1,103 103z" />
+    
+    <!-- Bank Message -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M115,140L100,140A5,5 0,0 1,95 135L95,120A5,5 0,0 1,100 115L115,115A5,5 0,0 1,120 120L120,125L125,120L120,130L120,135A5,5 0,0 1,115 140z" />
+    
+    <!-- Dollar sign for bank message -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M106,123L106,123A1,1 0,0 1,107 124L107,131A1,1 0,0 1,106 132L106,132A1,1 0,0 1,105 131L105,124A1,1 0,0 1,106 123z" />
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M103,127L103,127A1,1 0,0 1,104 126L108,126A1,1 0,0 1,109 127L109,127A1,1 0,0 1,108 128L104,128A1,1 0,0 1,103 127z" />
+    
+    <!-- Text for bank message -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M111,123L114,123A1,1 0,0 1,115 124L115,124A1,1 0,0 1,114 125L111,125A1,1 0,0 1,110 124L110,124A1,1 0,0 1,111 123z" />
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M111,127L114,127A1,1 0,0 1,115 128L115,128A1,1 0,0 1,114 129L111,129A1,1 0,0 1,110 128L110,128A1,1 0,0 1,111 127z" />
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M111,131L114,131A1,1 0,0 1,115 132L115,132A1,1 0,0 1,114 133L111,133A1,1 0,0 1,110 132L110,132A1,1 0,0 1,111 131z" />
+</vector>

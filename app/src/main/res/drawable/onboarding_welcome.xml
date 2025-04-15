@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    
+    <!-- Background Circle -->
+    <path
+        android:fillColor="#E8F5E9"
+        android:pathData="M120,120m-120,0a120,120 0,1 1,240 0a120,120 0,1 1,-240 0" />
+    
+    <!-- App Icon -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M120,80m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+    
+    <!-- Dollar Sign -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M120,65L120,65A3,3 0,0 1,123 68L123,92A3,3 0,0 1,120 95L120,95A3,3 0,0 1,117 92L117,68A3,3 0,0 1,120 65z" />
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M110,75L110,75A3,3 0,0 1,113 72L127,72A3,3 0,0 1,130 75L130,75A3,3 0,0 1,127 78L113,78A3,3 0,0 1,110 75z" />
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M110,85L110,85A3,3 0,0 1,113 82L127,82A3,3 0,0 1,130 85L130,85A3,3 0,0 1,127 88L113,88A3,3 0,0 1,110 85z" />
+    
+    <!-- Paper money and coin elements -->
+    <path
+        android:fillColor="#81C784"
+        android:pathData="M70,140l100,0l0,40l-100,0z" />
+    
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M70,140l100,0l0,10l-100,0z" />
+    
+    <path
+        android:fillColor="#388E3C"
+        android:pathData="M120,160m-15,0a15,15 0,1 1,30 0a15,15 0,1 1,-30 0" />
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M120,155L120,155A2,2 0,0 1,122 157L122,163A2,2 0,0 1,120 165L120,165A2,2 0,0 1,118 163L118,157A2,2 0,0 1,120 155z" />
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M115,160L115,160A2,2 0,0 1,117 158L123,158A2,2 0,0 1,125 160L125,160A2,2 0,0 1,123 162L117,162A2,2 0,0 1,115 160z" />
+    
+    <!-- Coin 1 -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M160,120m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0" />
+    
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M160,100l0,40a20,20 0,0 0,0 -40z" />
+    
+    <!-- Coin 2 -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M80,120m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0" />
+    
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M80,100l0,40a20,20 0,0 0,0 -40z" />
+</vector> 

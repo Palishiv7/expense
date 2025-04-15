@@ -10,6 +10,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.moneypulse.app.BuildConfig
 import com.moneypulse.app.R
+import com.moneypulse.app.util.DatabaseCleanupService
 import com.moneypulse.app.util.NotificationHelper
 import com.moneypulse.app.util.SecurityHelper
 import dagger.hilt.android.HiltAndroidApp
@@ -24,6 +25,9 @@ class MoneyPulseApp : Application(), Configuration.Provider {
     
     @Inject
     lateinit var securityHelper: SecurityHelper
+    
+    @Inject
+    lateinit var databaseCleanupService: DatabaseCleanupService
     
     // Flag to determine if security warning has been shown
     private var securityWarningShown = false
@@ -55,12 +59,32 @@ class MoneyPulseApp : Application(), Configuration.Provider {
         try {
             // Create notification channel for transactions
             NotificationHelper.createNotificationChannel(this)
+            
+            // Schedule database cleanup to optimize storage
+            scheduleDbCleanup()
         } catch (e: Exception) {
-            Log.e("MoneyPulseApp", "Error creating notification channel: ${e.message}")
+            Log.e("MoneyPulseApp", "Error during app initialization: ${e.message}")
         }
         
         // All security checks disabled for now to ensure app stability
         // Will re-enable in future updates after proper testing
+    }
+    
+    /**
+     * Schedule periodic database cleanup to optimize storage space
+     * by removing unnecessary SMS bodies from old transactions
+     */
+    private fun scheduleDbCleanup() {
+        try {
+            if (::databaseCleanupService.isInitialized) {
+                databaseCleanupService.scheduleCleanup()
+                Log.d("MoneyPulseApp", "Database cleanup service scheduled")
+            } else {
+                Log.w("MoneyPulseApp", "Database cleanup service not initialized")
+            }
+        } catch (e: Exception) {
+            Log.e("MoneyPulseApp", "Error scheduling database cleanup: ${e.message}")
+        }
     }
     
     /**

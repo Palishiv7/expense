@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+    
+    <!-- Background Circle -->
+    <path
+        android:fillColor="#EDE7F6"
+        android:pathData="M120,120m-120,0a120,120 0,1 1,240 0a120,120 0,1 1,-240 0" />
+    
+    <!-- Bank Building -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,140L190,140L190,180L50,180Z" />
+    
+    <!-- Bank Pillars -->
+    <path
+        android:fillColor="#D1C4E9"
+        android:pathData="M60,140L70,140L70,180L60,180Z" />
+    
+    <path
+        android:fillColor="#D1C4E9"
+        android:pathData="M90,140L100,140L100,180L90,180Z" />
+    
+    <path
+        android:fillColor="#D1C4E9"
+        android:pathData="M120,140L130,140L130,180L120,180Z" />
+    
+    <path
+        android:fillColor="#D1C4E9"
+        android:pathData="M150,140L160,140L160,180L150,180Z" />
+    
+    <path
+        android:fillColor="#D1C4E9"
+        android:pathData="M180,140L190,140L190,180L180,180Z" />
+    
+    <!-- Bank Roof -->
+    <path
+        android:fillColor="#9575CD"
+        android:pathData="M40,140L200,140L120,110Z" />
+    
+    <!-- Steps -->
+    <path
+        android:fillColor="#EEEEEE"
+        android:pathData="M60,180L180,180L180,190L60,190Z" />
+    
+    <path
+        android:fillColor="#E0E0E0"
+        android:pathData="M70,190L170,190L170,200L70,200Z" />
+    
+    <!-- Bank Card 1 -->
+    <path
+        android:fillColor="#F44336"
+        android:pathData="M70,70L120,70A5,5 0,0 1,125 75L125,100A5,5 0,0 1,120 105L70,105A5,5 0,0 1,65 100L65,75A5,5 0,0 1,70 70z" />
+    
+    <!-- Bank Card Chip -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M80,85L90,85L90,95L80,95Z" />
+    
+    <!-- Bank Card 2 -->
+    <path
+        android:fillColor="#2196F3"
+        android:pathData="M90,50L140,50A5,5 0,0 1,145 55L145,80A5,5 0,0 1,140 85L90,85A5,5 0,0 1,85 80L85,55A5,5 0,0 1,90 50z" />
+    
+    <!-- Bank Card Chip -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M100,65L110,65L110,75L100,75Z" />
+    
+    <!-- Bank Card 3 -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M120,90L170,90A5,5 0,0 1,175 95L175,120A5,5 0,0 1,170 125L120,125A5,5 0,0 1,115 120L115,95A5,5 0,0 1,120 90z" />
+    
+    <!-- Bank Card Chip -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M130,105L140,105L140,115L130,115Z" />
+</vector> 

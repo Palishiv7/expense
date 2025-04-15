@@ -58,4 +58,39 @@ interface TransactionDao {
     
     @Query("SELECT * FROM transactions WHERE type = :type AND date BETWEEN :startDate AND :endDate ORDER BY date DESC")
     fun getTransactionsByTypeAndDateRange(type: TransactionType, startDate: Date, endDate: Date): Flow<List<TransactionEntity>>
+    
+    // Synchronous methods needed for database migration
+    
+    /**
+     * Get all transactions synchronously (used for database migration)
+     */
+    @Query("SELECT * FROM transactions ORDER BY date DESC")
+    fun getAllTransactionsSync(): List<TransactionEntity>
+    
+    /**
+     * Insert multiple transactions in a single operation (used for database migration)
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertAllTransactions(transactions: List<TransactionEntity>): List<Long>
+    
+    /**
+     * Clear SMS bodies from transactions older than the specified timestamp
+     * This reduces database size by removing unnecessary SMS content from old transactions
+     * while preserving all transaction details (amount, merchant, date, category)
+     * 
+     * @param cutoffTimestamp All transactions older than this time will have SMS body cleared
+     * @return Number of transactions updated
+     */
+    @Query("UPDATE transactions SET smsBody = NULL WHERE date < :cutoffTimestamp")
+    suspend fun clearSmsBodiesOlderThan(cutoffTimestamp: Long): Int
+    
+    /**
+     * Count transactions with non-empty SMS bodies older than the specified timestamp
+     * Used for logging/debugging to see how many records will be cleaned up
+     * 
+     * @param cutoffTimestamp The threshold timestamp
+     * @return Count of transactions that would be cleaned up
+     */
+    @Query("SELECT COUNT(*) FROM transactions WHERE smsBody IS NOT NULL AND date < :cutoffTimestamp")
+    suspend fun countTransactionsWithSmsBodiesOlderThan(cutoffTimestamp: Long): Int
 } 

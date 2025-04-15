@@ -25,6 +25,9 @@ class PreferenceHelper @Inject constructor(
         private const val KEY_SMS_PERMISSION_DIALOG_SHOWN = "sms_permission_dialog_shown"
         private const val KEY_SMS_PERMISSION_STATUS = "sms_permission_status"
         
+        // Onboarding preferences
+        private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
+        
         // Transaction modes
         const val MODE_AUTOMATIC = "automatic"
         const val MODE_MANUAL = "manual"
@@ -197,5 +200,19 @@ class PreferenceHelper @Inject constructor(
      */
     fun setSmsPermissionStatus(status: String) {
         encryptedPrefs.edit().putString(KEY_SMS_PERMISSION_STATUS, status).apply()
+    }
+    
+    /**
+     * Check if user has completed the onboarding flow
+     */
+    fun hasCompletedOnboarding(): Boolean {
+        return encryptedPrefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
+    }
+    
+    /**
+     * Set onboarding completion status
+     */
+    fun setOnboardingCompleted(completed: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_ONBOARDING_COMPLETED, completed).apply()
     }
 } 
