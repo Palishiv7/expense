@@ -20,8 +20,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.moneypulse.app.R
 
+// Define colors for consistency with the rest of the app
+private val backgroundColor = Color(0xFFFAFAFA)
+private val primaryPurple = Color(0xFF6200EE)
+private val darkTextColor = Color(0xFF212121)
+private val mediumTextColor = Color(0xFF616161)
+
 /**
- * A modern, visually appealing SMS permission dialog
+ * A professional SMS permission dialog matching the app's white theme
  */
 @Composable
 fun SmsPermissionDialog(
@@ -33,83 +39,101 @@ fun SmsPermissionDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             backgroundColor = Color.White,
             elevation = 8.dp
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Icon
-                Box(
-                    modifier = Modifier
-                        .size(90.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFE1F5FE)),
-                    contentAlignment = Alignment.Center
+                // Icon with professional styling
+                Card(
+                    modifier = Modifier.size(100.dp),
+                    shape = CircleShape,
+                    backgroundColor = Color.White,
+                    elevation = 4.dp
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_sms),
-                        contentDescription = null,
-                        modifier = Modifier.size(50.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_sms),
+                            contentDescription = null,
+                            modifier = Modifier.size(60.dp)
+                        )
+                    }
                 }
                 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(28.dp))
                 
-                // Title
+                // Title with improved typography
                 Text(
                     text = stringResource(R.string.sms_dialog_title),
-                    fontSize = 22.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.DarkGray
+                    color = darkTextColor,
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                // Main text with improved readability
+                Text(
+                    text = stringResource(R.string.sms_dialog_main_text),
+                    fontSize = 16.sp,
+                    color = mediumTextColor,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 24.sp
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Main text
-                Text(
-                    text = stringResource(R.string.sms_dialog_main_text),
-                    fontSize = 16.sp,
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 24.sp
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
                 Text(
                     text = stringResource(R.string.sms_dialog_second_text),
                     fontSize = 16.sp,
-                    color = Color.Gray,
+                    color = mediumTextColor,
                     textAlign = TextAlign.Center,
                     lineHeight = 24.sp
                 )
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
-                Text(
-                    text = stringResource(R.string.sms_dialog_privacy_text),
-                    fontSize = 16.sp,
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 24.sp
-                )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = backgroundColor,
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = 0.dp
+                ) {
+                    Text(
+                        text = stringResource(R.string.sms_dialog_privacy_text),
+                        fontSize = 15.sp,
+                        color = mediumTextColor,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 23.sp,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
                 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(28.dp))
                 
-                // Buttons
+                // Buttons with professional styling
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
                 ) {
                     // Skip button
-                    TextButton(
+                    OutlinedButton(
                         onClick = onSkip,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = Color.Gray
-                        )
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = mediumTextColor
+                        ),
+                        border = ButtonDefaults.outlinedBorder,
+                        shape = RoundedCornerShape(50),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                     ) {
                         Text(
                             text = stringResource(R.string.sms_dialog_skip),
@@ -118,16 +142,18 @@ fun SmsPermissionDialog(
                         )
                     }
                     
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
                     // Continue button
                     Button(
                         onClick = onContinue,
                         colors = ButtonDefaults.buttonColors(
-                            backgroundColor = Color(0xFF6200EE)
+                            backgroundColor = primaryPurple
                         ),
                         shape = RoundedCornerShape(50),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
+                        elevation = ButtonDefaults.elevation(
+                            defaultElevation = 6.dp,
+                            pressedElevation = 8.dp
+                        )
                     ) {
                         Text(
                             text = stringResource(R.string.sms_dialog_continue),
