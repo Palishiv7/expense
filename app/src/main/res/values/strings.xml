@@ -8,6 +8,14 @@
     <string name="category">Category</string>
     <string name="category_hint">e.g. Food, Transport, Shopping</string>
     
+    <!-- SMS Permission Dialog -->
+    <string name="sms_dialog_title">SMS Access Required</string>
+    <string name="sms_dialog_main_text">MoneyPulse needs access to SMS to automatically detect and categorize financial transactions from your bank messages.</string>
+    <string name="sms_dialog_second_text">This allows the app to track your expenses without manual entry, saving you time and ensuring accurate records.</string>
+    <string name="sms_dialog_privacy_text">We only process bank transaction messages and never share your SMS data with third parties. All processing happens on your device.</string>
+    <string name="sms_dialog_skip">Skip</string>
+    <string name="sms_dialog_continue">Continue</string>
+    
     <!-- Onboarding Strings -->
     <string name="onboarding_welcome_title">Welcome to MoneyPulse</string>
     <string name="onboarding_welcome_desc">MoneyPulse helps you track your expenses automatically by analyzing your transaction SMS messages.</string>

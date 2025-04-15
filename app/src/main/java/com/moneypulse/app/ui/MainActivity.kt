@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -28,6 +27,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.moneypulse.app.R
+import com.moneypulse.app.ui.dialog.SmsPermissionDialog
 import com.moneypulse.app.ui.dialog.TransactionModeDialog
 import com.moneypulse.app.ui.home.HomeScreen
 import com.moneypulse.app.ui.home.viewmodel.HomeViewModel
@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
             MoneyPulseTheme {
                 // Show SMS permission explanation dialog if needed
                 if (showSmsPermissionExplanation) {
-                    SmsPermissionExplanationDialog(
+                    SmsPermissionDialog(
                         onContinue = {
                             showSmsPermissionExplanation = false
                             // Mark that dialog has been shown
@@ -225,54 +225,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-}
-
-/**
- * SMS Permission explanation dialog - follows Material Design guidelines
- * and explains clearly why the app needs SMS permissions
- */
-@Composable
-fun SmsPermissionExplanationDialog(
-    onContinue: () -> Unit,
-    onSkip: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = { /* Do nothing, force user to make a choice */ },
-        title = { Text("SMS Access Required") },
-        text = { 
-            Column {
-                Text(
-                    "MoneyPulse needs access to SMS to automatically detect and categorize " +
-                    "financial transactions from your bank messages."
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "This allows the app to track your expenses without manual entry, " +
-                    "saving you time and ensuring accurate records."
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "We only process bank transaction messages and never share your SMS data " +
-                    "with third parties. All processing happens on your device.",
-                    style = MaterialTheme.typography.body2
-                )
-            }
-        },
-        confirmButton = { 
-            Button(
-                onClick = onContinue
-            ) {
-                Text("Continue")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onSkip
-            ) {
-                Text("Skip")
-            }
-        }
-    )
 }
 
 @Composable
