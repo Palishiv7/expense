@@ -43,4 +43,5 @@ object CryptoHelper {
             throw e
         }
     }
-} 
+}
+// Added comment to force git to recognize the file change 

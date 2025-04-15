@@ -374,8 +374,8 @@ class SecurityHelper @Inject constructor(
                     || Build.PRODUCT.contains("sdk")
                     || Build.PRODUCT.contains("sdk_x86")
                     || Build.PRODUCT.contains("vbox86p")
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking if running in emulator: ${e.message}")
             false
         }
     }
