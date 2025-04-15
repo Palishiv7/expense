@@ -19,7 +19,7 @@ import javax.inject.Inject
 @HiltAndroidApp
 class MoneyPulseApp : Application(), Configuration.Provider {
     
-    // Declare variables but don't access them immediately to avoid early initialization crashes
+    // Use lazy initialization for injected dependencies to prevent race conditions
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
     
@@ -32,6 +32,9 @@ class MoneyPulseApp : Application(), Configuration.Provider {
     // Flag to determine if security warning has been shown
     private var securityWarningShown = false
     
+    // Flag to track if app initialization has completed successfully
+    private var initializationComplete = false
+    
     override fun onCreate() {
         // Guard entire onCreate with try-catch to prevent any crashes during startup
         try {
@@ -41,11 +44,12 @@ class MoneyPulseApp : Application(), Configuration.Provider {
             Handler(Looper.getMainLooper()).postDelayed({
                 try {
                     initializeApp()
+                    initializationComplete = true
                 } catch (e: Exception) {
                     // Log but don't crash
                     Log.e("MoneyPulseApp", "Error during delayed initialization: ${e.message}")
                 }
-            }, 1000)
+            }, 500) // Shortened delay for faster startup
         } catch (e: Exception) {
             // Catch all exceptions to prevent app crashes during startup
             Log.e("MoneyPulseApp", "Critical error during app start: ${e.message}")
@@ -60,8 +64,26 @@ class MoneyPulseApp : Application(), Configuration.Provider {
             // Create notification channel for transactions
             NotificationHelper.createNotificationChannel(this)
             
-            // Schedule database cleanup to optimize storage
-            scheduleDbCleanup()
+            // Schedule database cleanup to optimize storage with safe checks
+            if (::databaseCleanupService.isInitialized) {
+                try {
+                    scheduleDbCleanup()
+                } catch (e: Exception) {
+                    Log.e("MoneyPulseApp", "Error scheduling DB cleanup: ${e.message}")
+                }
+            } else {
+                Log.w("MoneyPulseApp", "DatabaseCleanupService not initialized yet")
+                // Schedule a retry with a small delay
+                Handler(Looper.getMainLooper()).postDelayed({
+                    try {
+                        if (::databaseCleanupService.isInitialized) {
+                            scheduleDbCleanup()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("MoneyPulseApp", "Error in delayed DB cleanup: ${e.message}")
+                    }
+                }, 2000)
+            }
         } catch (e: Exception) {
             Log.e("MoneyPulseApp", "Error during app initialization: ${e.message}")
         }
@@ -99,20 +121,59 @@ class MoneyPulseApp : Application(), Configuration.Provider {
         // Rest of method kept for future reference but not used now
     }
     
+    /**
+     * Provide WorkManager configuration with improved crash protection
+     * Uses default configuration if dependencies aren't initialized yet
+     */
     override fun getWorkManagerConfiguration(): Configuration {
-        // Handle the case where workerFactory might not be initialized yet
-        try {
+        return try {
+            // Only use custom configuration if initialization has completed
+            // and dependencies are properly initialized
             if (::workerFactory.isInitialized) {
-                return Configuration.Builder()
+                Log.d("MoneyPulseApp", "Using custom WorkManager configuration")
+                Configuration.Builder()
                     .setWorkerFactory(workerFactory)
+                    .setMinimumLoggingLevel(Log.INFO)
                     .build()
             } else {
                 Log.w("MoneyPulseApp", "WorkerFactory not initialized yet, using default config")
-                return Configuration.Builder().build()
+                // Schedule a retry to properly initialize WorkManager later
+                scheduleWorkManagerReinitialization()
+                
+                // Return a simple default configuration for now
+                Configuration.Builder()
+                    .setMinimumLoggingLevel(Log.INFO)
+                    .build()
             }
         } catch (e: Exception) {
             Log.e("MoneyPulseApp", "Error setting up WorkManager: ${e.message}")
-            return Configuration.Builder().build()
+            // Return a safe fallback configuration
+            Configuration.Builder()
+                .setMinimumLoggingLevel(Log.INFO)
+                .build()
+        }
+    }
+    
+    /**
+     * Attempt to reinitialize WorkManager if initial setup failed
+     * This helps recover from a killed/restored state
+     */
+    private fun scheduleWorkManagerReinitialization() {
+        try {
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    // If the app is still running and the worker factory is now available
+                    if (::workerFactory.isInitialized) {
+                        Log.d("MoneyPulseApp", "Attempting WorkManager reinitialization")
+                        androidx.work.WorkManager.getInstance(applicationContext)
+                        scheduleDbCleanup()
+                    }
+                } catch (e: Exception) {
+                    Log.e("MoneyPulseApp", "Error during WorkManager reinitialization: ${e.message}")
+                }
+            }, 3000) // Give Hilt time to initialize dependencies
+        } catch (e: Exception) {
+            Log.e("MoneyPulseApp", "Error scheduling WorkManager reinitialization: ${e.message}")
         }
     }
 } 

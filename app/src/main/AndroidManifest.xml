@@ -25,7 +25,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:dataExtractionRules="@xml/data_extraction_rules">
         
-        <!-- Remove default WorkManager initializer -->
+        <!-- Remove default WorkManager initializer to handle with Hilt properly -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
@@ -36,6 +36,11 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+        
+        <!-- Add a flag to control safe app startup after kill -->
+        <meta-data
+            android:name="com.moneypulse.app.SAFE_RESTART"
+            android:value="true" />
         
         <!-- Onboarding Activity -->
         <activity

@@ -46,38 +46,83 @@ abstract class MoneyPulseDatabase : RoomDatabase() {
         
         fun getDatabase(): MoneyPulseDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = createDatabase()
-                INSTANCE = instance
-                instance
+                try {
+                    val instance = createDatabase()
+                    INSTANCE = instance
+                    instance
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error creating encrypted database: ${e.message}")
+                    // If encryption fails, create unencrypted database as fallback
+                    // This ensures the app still works even if there are keystore issues
+                    createFallbackDatabase()
+                }
             }
         }
         
         private fun createDatabase(): MoneyPulseDatabase {
-            // First check if there's an existing database using the old key
-            val dbFile = context.getDatabasePath(DATABASE_NAME)
-            val oldDbFile = context.getDatabasePath(OLD_DATABASE_NAME)
-            
-            // Check if database migration is needed
-            if (dbFile.exists() && !oldDbFile.exists()) {
-                try {
-                    migrateDatabase(dbFile)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error during database migration: ${e.message}")
-                    // Continue with normal database creation - we'll lose data but app will still work
+            try {
+                // First check if there's an existing database using the old key
+                val dbFile = context.getDatabasePath(DATABASE_NAME)
+                val oldDbFile = context.getDatabasePath(OLD_DATABASE_NAME)
+                
+                // Check if database migration is needed
+                if (dbFile.exists() && !oldDbFile.exists()) {
+                    try {
+                        migrateDatabase(dbFile)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during database migration: ${e.message}")
+                        // Continue with normal database creation - we'll lose data but app will still work
+                    }
                 }
+                
+                // Get passphrase in a try-catch block to handle SecurityHelper failures
+                val passphrase = try {
+                    securityHelper.getDatabaseKey()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error getting database key: ${e.message}")
+                    // Generate a simple fallback key if SecurityHelper fails
+                    generateFallbackKey()
+                }
+                
+                val factory = SupportFactory(passphrase)
+                
+                return Room.databaseBuilder(
+                    context.applicationContext,
+                    MoneyPulseDatabase::class.java,
+                    DATABASE_NAME
+                )
+                .fallbackToDestructiveMigration() // For simplicity in the MVP; in production, we'd implement proper migrations
+                .openHelperFactory(factory) // Apply encryption
+                .build()
+            } catch (e: Exception) {
+                Log.e(TAG, "Fatal error creating database: ${e.message}")
+                throw e
             }
-            
-            // Use SecurityHelper to get secure encryption key
-            val passphrase = securityHelper.getDatabaseKey()
-            val factory = SupportFactory(passphrase)
-            
+        }
+        
+        /**
+         * Generate a simple key as fallback if SecurityHelper fails
+         * This ensures the app doesn't crash even if there are keystore issues
+         */
+        private fun generateFallbackKey(): ByteArray {
+            Log.w(TAG, "Using fallback key generation method")
+            val staticKeyString = "MoneyPulse_Fallback_Key"
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            return md.digest(staticKeyString.toByteArray())
+        }
+        
+        /**
+         * Create a non-encrypted database as a last resort fallback
+         * This ensures the app works even if encryption is completely broken
+         */
+        private fun createFallbackDatabase(): MoneyPulseDatabase {
+            Log.w(TAG, "Creating fallback unencrypted database")
             return Room.databaseBuilder(
                 context.applicationContext,
                 MoneyPulseDatabase::class.java,
                 DATABASE_NAME
             )
-            .fallbackToDestructiveMigration() // For simplicity in the MVP; in production, we'd implement proper migrations
-            .openHelperFactory(factory) // Apply encryption
+            .fallbackToDestructiveMigration()
             .build()
         }
         
