@@ -27,6 +27,15 @@ import com.google.accompanist.pager.rememberPagerState
 import com.moneypulse.app.R
 import kotlinx.coroutines.launch
 
+// Vibrant color definitions
+private val welcomeBackgroundColor = Color(0xFFE0F7E0)
+private val smsBackgroundColor = Color(0xFFE1F5FE)
+private val banksBackgroundColor = Color(0xFFF3E5F5)
+private val completionBackgroundColor = Color(0xFFE8F5E9)
+private val primaryColor = Color(0xFF6200EE)
+private val primaryLightColor = Color(0xFF9E76F1)
+private val moneyGreen = Color(0xFF4CAF50)
+
 @OptIn(ExperimentalPagerApi::class)
 @Composable
 fun OnboardingScreen(onOnboardingComplete: () -> Unit) {
@@ -57,7 +66,7 @@ fun OnboardingScreen(onOnboardingComplete: () -> Unit) {
         ) {
             repeat(4) { iteration ->
                 val color = if (pagerState.currentPage == iteration) {
-                    Color(0xFF6200EE) // Purple for current page
+                    primaryColor
                 } else {
                     Color.LightGray
                 }
@@ -66,7 +75,7 @@ fun OnboardingScreen(onOnboardingComplete: () -> Unit) {
                         .padding(4.dp)
                         .clip(CircleShape)
                         .background(color)
-                        .size(10.dp)
+                        .size(if (pagerState.currentPage == iteration) 12.dp else 10.dp)
                 )
             }
         }
@@ -88,12 +97,15 @@ fun OnboardingScreen(onOnboardingComplete: () -> Unit) {
                 .fillMaxWidth(0.9f)
                 .height(56.dp),
             shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF6200EE))
+            colors = ButtonDefaults.buttonColors(
+                backgroundColor = if (pagerState.currentPage == 3) moneyGreen else primaryColor
+            )
         ) {
             Text(
                 text = if (pagerState.currentPage < 3) stringResource(R.string.onboarding_next) else stringResource(R.string.onboarding_get_started),
                 color = Color.White,
-                fontSize = 18.sp
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }
@@ -104,38 +116,41 @@ fun WelcomeScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(welcomeBackgroundColor)
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(200.dp)
-                .background(Color(0xFFE8F5E9), RoundedCornerShape(50)),
+                .size(220.dp)
+                .background(Color(0xFFDCEDDC), RoundedCornerShape(110.dp)),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_money),
                 contentDescription = null,
-                modifier = Modifier.size(120.dp)
+                modifier = Modifier.size(140.dp)
             )
         }
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(40.dp))
         
         Text(
             text = stringResource(R.string.onboarding_welcome_title),
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.DarkGray
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         
         Text(
             text = stringResource(R.string.onboarding_welcome_desc),
-            fontSize = 16.sp,
+            fontSize = 18.sp,
             textAlign = TextAlign.Center,
-            color = Color.Gray
+            color = Color.Gray,
+            lineHeight = 28.sp
         )
     }
 }
@@ -145,38 +160,41 @@ fun SmsPermissionScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(smsBackgroundColor)
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(200.dp)
-                .background(Color(0xFFE1F5FE), RoundedCornerShape(50)),
+                .size(220.dp)
+                .background(Color(0xFFBBDEFB), RoundedCornerShape(110.dp)),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_sms),
                 contentDescription = null,
-                modifier = Modifier.size(120.dp)
+                modifier = Modifier.size(140.dp)
             )
         }
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(40.dp))
         
         Text(
             text = stringResource(R.string.onboarding_sms_title),
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.DarkGray
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         
         Text(
             text = stringResource(R.string.onboarding_sms_desc),
-            fontSize = 16.sp,
+            fontSize = 18.sp,
             textAlign = TextAlign.Center,
-            color = Color.Gray
+            color = Color.Gray,
+            lineHeight = 28.sp
         )
     }
 }
@@ -186,38 +204,41 @@ fun SupportedBanksScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(banksBackgroundColor)
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(200.dp)
-                .background(Color(0xFFF3E5F5), RoundedCornerShape(50)),
+                .size(220.dp)
+                .background(Color(0xFFE1BEE7), RoundedCornerShape(110.dp)),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_bank),
                 contentDescription = null,
-                modifier = Modifier.size(120.dp)
+                modifier = Modifier.size(140.dp)
             )
         }
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(40.dp))
         
         Text(
             text = stringResource(R.string.onboarding_banks_title),
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.DarkGray
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         
         Text(
             text = stringResource(R.string.onboarding_banks_desc),
-            fontSize = 16.sp,
+            fontSize = 18.sp,
             textAlign = TextAlign.Center,
-            color = Color.Gray
+            color = Color.Gray,
+            lineHeight = 28.sp
         )
     }
 }
@@ -227,38 +248,41 @@ fun CompletionScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(completionBackgroundColor)
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(200.dp)
-                .background(Color(0xFFE8F5E9), RoundedCornerShape(50)),
+                .size(220.dp)
+                .background(Color(0xFFC8E6C9), RoundedCornerShape(110.dp)),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_check),
                 contentDescription = null,
-                modifier = Modifier.size(120.dp)
+                modifier = Modifier.size(140.dp)
             )
         }
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(40.dp))
         
         Text(
             text = stringResource(R.string.onboarding_complete_title),
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.DarkGray
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
         
         Text(
             text = stringResource(R.string.onboarding_complete_desc),
-            fontSize = 16.sp,
+            fontSize = 18.sp,
             textAlign = TextAlign.Center,
-            color = Color.Gray
+            color = Color.Gray,
+            lineHeight = 28.sp
         )
     }
 } 
