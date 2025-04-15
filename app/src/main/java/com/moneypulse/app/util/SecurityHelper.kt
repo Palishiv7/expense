@@ -50,8 +50,24 @@ class SecurityHelper @Inject constructor(
         // Add BouncyCastle provider for cryptography operations
         init {
             try {
-                Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
-                Security.addProvider(BouncyCastleProvider())
+                // Check if provider is already available before removing/adding
+                val existingProvider = Security.getProvider(BouncyCastleProvider.PROVIDER_NAME)
+                
+                // Only register if not already available or if we need to replace it
+                if (existingProvider == null) {
+                    Log.d(TAG, "Adding BouncyCastle security provider")
+                    Security.addProvider(BouncyCastleProvider())
+                } else {
+                    // Provider exists, but we'll still update it to ensure it's not corrupted
+                    Log.d(TAG, "Updating existing BouncyCastle security provider")
+                    try {
+                        Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
+                        Security.addProvider(BouncyCastleProvider())
+                    } catch (e: Exception) {
+                        // If update fails, leave existing provider in place
+                        Log.w(TAG, "Could not update security provider, using existing: ${e.message}")
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error initializing security provider: ${e.message}")
             }
@@ -169,8 +185,21 @@ class SecurityHelper @Inject constructor(
             // Get or create a device-specific ID for consistent encryption
             val deviceId = getSecureDeviceId()
             
+            // Check if key exists in keystore
+            if (!keyStore.containsAlias(DATABASE_KEY_NAME)) {
+                Log.w(TAG, "Database key not found in keystore, creating new one")
+                createAndroidKeystoreKey(DATABASE_KEY_NAME)
+                
+                // If still not there, use fallback
+                if (!keyStore.containsAlias(DATABASE_KEY_NAME)) {
+                    Log.e(TAG, "Could not create keystore key, using fallback")
+                    return createFallbackKey()
+                }
+            }
+            
             // Get secret key from keystore - explicitly cast to javax.crypto.SecretKey
-            val secretKey = keyStore.getKey(DATABASE_KEY_NAME, null) as javax.crypto.SecretKey
+            val secretKey = keyStore.getKey(DATABASE_KEY_NAME, null) as? javax.crypto.SecretKey
+                ?: return createFallbackKey() // Use fallback if key is null or wrong type
             
             // Use key to encrypt device ID to get consistent bytes for SQLCipher
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -181,14 +210,19 @@ class SecurityHelper @Inject constructor(
             
         } catch (e: Exception) {
             Log.e(TAG, "Error getting secure database key: ${e.message}")
-            
-            // Fallback mechanism for backward compatibility or recovery
-            Log.w(TAG, "Using fallback key generation method")
-            
-            // Generate device-specific key using multiple device properties
-            val fallbackDeviceId = getSecureDeviceId()
-            val salt = "MoneyPulse_Key_Salt_v2" // Salt to strengthen the key
-            
+            return createFallbackKey()
+        }
+    }
+    
+    /**
+     * Create a fallback key when keystore operations fail
+     */
+    private fun createFallbackKey(): ByteArray {
+        // Generate device-specific key using multiple device properties
+        val fallbackDeviceId = getSecureDeviceId()
+        val salt = "MoneyPulse_Key_Salt_v2" // Salt to strengthen the key
+        
+        try {
             // Use PBKDF2 to derive a strong key using our helper class
             val secretKey = CryptoHelper.createPBEKey(
                 fallbackDeviceId.toCharArray(), 
@@ -198,6 +232,12 @@ class SecurityHelper @Inject constructor(
             )
             
             return secretKey.encoded
+        } catch (e: Exception) {
+            // Last resort static key if everything else fails
+            Log.e(TAG, "Using static emergency key: ${e.message}")
+            val staticKey = "MoneyPulse_Static_Emergency_Key_v1"
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            return md.digest(staticKey.toByteArray())
         }
     }
     

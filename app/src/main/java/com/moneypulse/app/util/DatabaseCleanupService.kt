@@ -58,7 +58,7 @@ class DatabaseCleanupService @Inject constructor(
             // Schedule the work, replacing any existing work with the same name
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.REPLACE,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 cleanupWorkRequest
             )
             

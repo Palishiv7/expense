@@ -54,7 +54,13 @@ abstract class MoneyPulseDatabase : RoomDatabase() {
                     Log.e(TAG, "Error creating encrypted database: ${e.message}")
                     // If encryption fails, create unencrypted database as fallback
                     // This ensures the app still works even if there are keystore issues
-                    createFallbackDatabase()
+                    try {
+                        createFallbackDatabase()
+                    } catch (innerE: Exception) {
+                        Log.e(TAG, "Even fallback database creation failed: ${innerE.message}")
+                        // Last resort: try with a fully static approach
+                        lastResortDatabase()
+                    }
                 }
             }
         }
@@ -64,6 +70,18 @@ abstract class MoneyPulseDatabase : RoomDatabase() {
                 // First check if there's an existing database using the old key
                 val dbFile = context.getDatabasePath(DATABASE_NAME)
                 val oldDbFile = context.getDatabasePath(OLD_DATABASE_NAME)
+                
+                // Check if database might be corrupted
+                val attemptRecovery = dbFile.exists() && dbFile.length() < 1024 // Empty or tiny DB is suspicious
+                
+                // Delete corrupt database before proceeding to avoid crashes
+                if (attemptRecovery) {
+                    Log.w(TAG, "Detected potentially corrupted database, removing it")
+                    dbFile.delete()
+                    File(dbFile.path + "-journal").delete()
+                    File(dbFile.path + "-shm").delete()
+                    File(dbFile.path + "-wal").delete()
+                }
                 
                 // Check if database migration is needed
                 if (dbFile.exists() && !oldDbFile.exists()) {
@@ -191,6 +209,36 @@ abstract class MoneyPulseDatabase : RoomDatabase() {
                 Log.e(TAG, "Error during database migration: ${e.message}")
                 throw e
             }
+        }
+        
+        /**
+         * Last resort unencrypted database when all else fails
+         * This is a simplistic approach that ensures the app at least starts
+         */
+        private fun lastResortDatabase(): MoneyPulseDatabase {
+            Log.w(TAG, "Creating last resort database with no encryption")
+            
+            // Try to remove any existing database first
+            try {
+                val dbFile = context.getDatabasePath(DATABASE_NAME)
+                if (dbFile.exists()) {
+                    dbFile.delete()
+                    File(dbFile.path + "-journal").delete()
+                    File(dbFile.path + "-shm").delete()
+                    File(dbFile.path + "-wal").delete()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error cleaning up before last resort: ${e.message}")
+            }
+            
+            // Build without encryption and with clean slate
+            return Room.databaseBuilder(
+                context.applicationContext,
+                MoneyPulseDatabase::class.java,
+                DATABASE_NAME
+            )
+            .fallbackToDestructiveMigration()
+            .build()
         }
     }
 }
