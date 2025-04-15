@@ -284,7 +284,7 @@ jobs:
     # Upload Debug APK
     - name: Upload Debug APK
       if: env.DEBUG_APK != ''
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@master
       with:
         name: app-debug
         path: ${{ env.DEBUG_APK }}
@@ -292,7 +292,7 @@ jobs:
     # Upload Release APK
     - name: Upload Release APK
       if: env.RELEASE_APK != ''
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@master
       with:
         name: app-release
         path: ${{ env.RELEASE_APK }}
@@ -300,7 +300,7 @@ jobs:
     # Upload Release Bundle (AAB)
     - name: Upload Release Bundle
       if: env.RELEASE_BUNDLE != ''
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@master
       with:
         name: app-release-bundle
         path: ${{ env.RELEASE_BUNDLE }}
@@ -308,7 +308,7 @@ jobs:
     # Upload fallback log if no artifacts were found
     - name: Upload Build Log
       if: env.BUILD_LOG != ''
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@master
       with:
         name: build-log
         path: ${{ env.BUILD_LOG }}
