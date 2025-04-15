@@ -2,7 +2,6 @@ package com.moneypulse.app.ui.settings.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.moneypulse.app.util.PreferenceHelper
-import com.moneypulse.app.util.SecurityHelper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,8 +10,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val preferenceHelper: PreferenceHelper,
-    private val securityHelper: SecurityHelper
+    private val preferenceHelper: PreferenceHelper
 ) : ViewModel() {
     
     // State for automatic transaction mode
@@ -22,17 +20,6 @@ class SettingsViewModel @Inject constructor(
     // State for user's monthly income
     private val _userIncome = MutableStateFlow(preferenceHelper.getUserIncome())
     val userIncome: StateFlow<Double> = _userIncome.asStateFlow()
-    
-    // State for biometric authentication availability
-    private val _isBiometricAvailable = MutableStateFlow(securityHelper.isBiometricAvailable())
-    val isBiometricAvailable: StateFlow<Boolean> = _isBiometricAvailable.asStateFlow()
-    
-    // State for biometric authentication enabled status
-    private val _isBiometricEnabled = MutableStateFlow(
-        // Only consider it enabled if it's both enabled in preferences AND available on device
-        preferenceHelper.isBiometricEnabled() && securityHelper.isBiometricAvailable()
-    )
-    val isBiometricEnabled: StateFlow<Boolean> = _isBiometricEnabled.asStateFlow()
     
     /**
      * Set the automatic transaction processing mode
@@ -52,20 +39,5 @@ class SettingsViewModel @Inject constructor(
     fun updateIncome(income: Double) {
         preferenceHelper.setUserIncome(income)
         _userIncome.value = income
-    }
-    
-    /**
-     * Enable or disable biometric authentication
-     */
-    fun setBiometricEnabled(enabled: Boolean) {
-        // Only update if biometric is available
-        if (securityHelper.isBiometricAvailable()) {
-            preferenceHelper.setBiometricEnabled(enabled)
-            _isBiometricEnabled.value = enabled
-        } else if (enabled) {
-            // If trying to enable but not available, ensure it's disabled
-            preferenceHelper.setBiometricEnabled(false)
-            _isBiometricEnabled.value = false
-        }
     }
 } 

@@ -20,7 +20,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -35,31 +34,18 @@ import com.moneypulse.app.ui.settings.SettingsScreen
 import com.moneypulse.app.ui.transactions.AddTransactionScreen
 import com.moneypulse.app.ui.transactions.TransactionsScreen
 import com.moneypulse.app.util.PreferenceHelper
-import com.moneypulse.app.util.SecurityHelper
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import androidx.hilt.navigation.compose.hiltViewModel
 
 @AndroidEntryPoint
-class MainActivity : FragmentActivity() {
+class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var preferenceHelper: PreferenceHelper
     
-    @Inject
-    lateinit var securityHelper: SecurityHelper
-    
     // State variable to track if the permission explanation dialog is showing
     private var showSmsPermissionExplanation by mutableStateOf(false)
-    
-    // State variable to track if biometric authentication is required
-    private var isBiometricRequired by mutableStateOf(false)
-    
-    // State variable to track if biometric authentication is successful
-    private var isBiometricAuthenticated by mutableStateOf(false)
-    
-    // State variable to track biometric auth error message
-    private var biometricErrorMessage by mutableStateOf<String?>(null)
 
     private val smsPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -79,10 +65,10 @@ class MainActivity : FragmentActivity() {
     ) { isGranted ->
         if (isGranted) {
             // Notification permission granted
-            checkBiometricRequirement()
+            checkFirstLaunch()
         } else {
             // Handle notification permission denied
-            checkBiometricRequirement()
+            checkFirstLaunch()
         }
     }
 
@@ -109,22 +95,8 @@ class MainActivity : FragmentActivity() {
                         }
                     )
                 }
-                // Show biometric authentication dialog if required
-                else if (isBiometricRequired && !isBiometricAuthenticated) {
-                    BiometricRequiredDialog()
-                }
-                // Show main content if permissions and authentication are handled
-                else {
-                    MainScreen()
-                }
                 
-                // Show error message if biometric authentication fails
-                biometricErrorMessage?.let { errorMsg ->
-                    BiometricErrorDialog(
-                        errorMessage = errorMsg,
-                        onDismiss = { biometricErrorMessage = null }
-                    )
-                }
+                MainScreen()
             }
         }
     }
@@ -165,7 +137,7 @@ class MainActivity : FragmentActivity() {
                     Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED -> {
                     // Notification permission already granted
-                    checkBiometricRequirement()
+                    checkFirstLaunch()
                 }
                 shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
                     // Show explanation dialog for notification permission
@@ -177,47 +149,8 @@ class MainActivity : FragmentActivity() {
             }
         } else {
             // For older Android versions, no notification permission needed
-            checkBiometricRequirement()
-        }
-    }
-    
-    /**
-     * Check if biometric authentication is required based on user preferences
-     * and device capabilities
-     */
-    private fun checkBiometricRequirement() {
-        // Only require biometric if both available on device AND enabled in preferences
-        val isBiometricAvailable = securityHelper.isBiometricAvailable()
-        val isBiometricEnabled = preferenceHelper.isBiometricEnabled()
-        
-        if (isBiometricAvailable && isBiometricEnabled) {
-            isBiometricRequired = true
-            // Authentication will be handled by BiometricRequiredDialog composable
-        } else {
-            // No biometric required or available, proceed to first launch check
-            isBiometricRequired = false
-            isBiometricAuthenticated = true
             checkFirstLaunch()
         }
-    }
-    
-    /**
-     * Show biometric authentication prompt using SecurityHelper
-     */
-    private fun showBiometricPrompt() {
-        securityHelper.showBiometricPrompt(
-            activity = this,
-            title = getString(R.string.biometric_prompt_title),
-            subtitle = getString(R.string.biometric_prompt_subtitle),
-            negativeButtonText = getString(R.string.biometric_prompt_cancel),
-            onSuccess = {
-                isBiometricAuthenticated = true
-                checkFirstLaunch()
-            },
-            onError = { errorMessage ->
-                biometricErrorMessage = errorMessage
-            }
-        )
     }
     
     /**
@@ -230,63 +163,6 @@ class MainActivity : FragmentActivity() {
                 // Apply the selected mode (can be used for immediate actions if needed)
             }
         }
-    }
-    
-    /**
-     * Composable function for biometric authentication dialog
-     */
-    @Composable
-    private fun BiometricRequiredDialog() {
-        AlertDialog(
-            onDismissRequest = {
-                // Don't allow dismissing by tapping outside
-            },
-            title = { Text(text = stringResource(R.string.biometric_prompt_title)) },
-            text = { Text(text = stringResource(R.string.biometric_prompt_subtitle)) },
-            confirmButton = {
-                Button(
-                    onClick = { showBiometricPrompt() }
-                ) {
-                    Text(stringResource(R.string.biometric_setup_enable))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        // For user convenience, allow proceeding without biometric
-                        // but don't disable the setting
-                        isBiometricAuthenticated = true
-                        checkFirstLaunch()
-                    }
-                ) {
-                    Text(stringResource(R.string.biometric_prompt_cancel))
-                }
-            }
-        )
-    }
-    
-    /**
-     * Composable function for displaying biometric error messages
-     */
-    @Composable
-    private fun BiometricErrorDialog(errorMessage: String, onDismiss: () -> Unit) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(text = stringResource(R.string.biometric_auth_failed)) },
-            text = { 
-                Text(
-                    text = stringResource(
-                        R.string.biometric_auth_error, 
-                        errorMessage
-                    )
-                ) 
-            },
-            confirmButton = {
-                Button(onClick = onDismiss) {
-                    Text(text = "OK")
-                }
-            }
-        )
     }
 }
 

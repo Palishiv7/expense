@@ -208,47 +208,6 @@ fun SettingsScreen(
                         Text("View", color = MaterialTheme.colors.onPrimary)
                     }
                 }
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                // Biometric Authentication Row
-                val isBiometricAvailable = viewModel.isBiometricAvailable.collectAsState().value
-                val isBiometricEnabled = viewModel.isBiometricEnabled.collectAsState().value
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.biometric_protection_title),
-                            style = MaterialTheme.typography.subtitle1
-                        )
-                        
-                        Text(
-                            text = if (isBiometricAvailable) 
-                                stringResource(R.string.biometric_protection_summary)
-                            else
-                                stringResource(R.string.biometric_not_available),
-                            style = MaterialTheme.typography.caption,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                    
-                    Switch(
-                        checked = isBiometricEnabled,
-                        onCheckedChange = { viewModel.setBiometricEnabled(it) },
-                        enabled = isBiometricAvailable,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colors.primary
-                        )
-                    )
-                }
             }
         }
         
