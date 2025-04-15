@@ -133,4 +133,16 @@ class SettingsViewModel @Inject constructor(
         preferenceHelper.setScreenCaptureBlocked(blocked)
         _isScreenCaptureBlocked.value = blocked
     }
+    
+    /**
+     * Request SMS permission by opening app settings
+     * since we can't directly request permission from settings screen
+     */
+    fun requestSmsPermission() {
+        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        val uri = Uri.fromParts("package", context.packageName, null)
+        intent.data = uri
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
 } 
