@@ -73,11 +73,6 @@ android {
         abi {
             enableSplit = true
         }
-        
-        // Ensure resources are properly bundled
-        dynamic {
-            supportedAbis = ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
-        }
     }
 
     buildTypes {
