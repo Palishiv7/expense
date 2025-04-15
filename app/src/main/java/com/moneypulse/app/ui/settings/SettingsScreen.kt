@@ -44,21 +44,23 @@ fun SettingsScreen(
     
     // Use lifecycle-aware API to detect when returning from settings
     DisposableEffect(context) {
-        val activity = context as? androidx.activity.ComponentActivity
-        val callback = androidx.activity.OnBackPressedCallback(false) { /* dummy callback */ }
+        val activity = context as? ComponentActivity
         
-        // Set up the observer for activity resume events
-        activity?.lifecycle?.addObserver(object : androidx.lifecycle.LifecycleObserver {
-            @androidx.lifecycle.OnLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_RESUME)
+        // Create the lifecycle observer properly
+        val lifecycleObserver = object : LifecycleObserver {
+            @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
             fun onResume() {
                 // Refresh permissions when activity resumes
                 viewModel.refreshSmsPermissionStatus()
             }
-        })
+        }
+        
+        // Add the observer
+        activity?.lifecycle?.addObserver(lifecycleObserver)
         
         onDispose {
-            // Clean up when leaving the screen
-            activity?.lifecycle?.removeObserver(callback)
+            // Clean up when leaving the screen - remove the correct observer
+            activity?.lifecycle?.removeObserver(lifecycleObserver)
         }
     }
     
