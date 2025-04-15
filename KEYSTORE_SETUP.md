@@ -1,4 +1,4 @@
-# Keystore Setup Guide for Play Store Submission
+ # Keystore Setup Guide for Play Store Submission
 
 This guide explains how to create a keystore for signing your app and set up GitHub Secrets for automated building.
 
