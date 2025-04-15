@@ -15,11 +15,12 @@ import com.moneypulse.app.util.security.CryptoHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.security.KeyStore
-import java.security.SecretKey
 import java.security.Key
+import java.security.Security
 import java.security.cert.Certificate
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.IvParameterSpec
@@ -27,6 +28,7 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 import javax.inject.Inject
 import javax.inject.Singleton
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 /**
  * Helper class for all security-related functionality
@@ -44,6 +46,16 @@ class SecurityHelper @Inject constructor(
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val BIOMETRIC_KEY_NAME = "moneypulse_biometric_key"
         private const val DATABASE_KEY_NAME = "moneypulse_database_key"
+        
+        // Add BouncyCastle provider for cryptography operations
+        init {
+            try {
+                Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
+                Security.addProvider(BouncyCastleProvider())
+            } catch (e: Exception) {
+                Log.e(TAG, "Error initializing security provider: ${e.message}")
+            }
+        }
         
         // Security verification constants
         private val KNOWN_DANGEROUS_APPS = listOf(
@@ -157,8 +169,8 @@ class SecurityHelper @Inject constructor(
             // Get or create a device-specific ID for consistent encryption
             val deviceId = getSecureDeviceId()
             
-            // Get secret key from keystore
-            val secretKey = keyStore.getKey(DATABASE_KEY_NAME, null) as SecretKey
+            // Get secret key from keystore - explicitly cast to javax.crypto.SecretKey
+            val secretKey = keyStore.getKey(DATABASE_KEY_NAME, null) as javax.crypto.SecretKey
             
             // Use key to encrypt device ID to get consistent bytes for SQLCipher
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")

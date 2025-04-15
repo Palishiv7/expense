@@ -26,15 +26,14 @@ if (isGitHubActions) {
 }
 
 android {
-    compileSdkVersion 34
-    buildToolsVersion "34.0.0"
-
     namespace "com.moneypulse.app"
+    compileSdk 34
+    buildToolsVersion "34.0.0"
 
     defaultConfig {
         applicationId "com.moneypulse.app"
-        minSdkVersion 26
-        targetSdkVersion 34
+        minSdk 24
+        targetSdk 34
         versionCode 1
         versionName "1.0"
 
@@ -42,6 +41,9 @@ android {
         vectorDrawables {
             useSupportLibrary true
         }
+        
+        // Ensure proper compatibility with javax.crypto
+        multiDexEnabled true
     }
 
     // Add signing configurations
@@ -111,6 +113,7 @@ android {
         }
     }
     
+    // Enable Java 8 features for security APIs
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -139,6 +142,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.10.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
     implementation 'androidx.activity:activity-compose:1.8.0'
+    implementation 'androidx.multidex:multidex:2.0.1'
     
     // ViewPager2 for onboarding
     implementation 'androidx.viewpager2:viewpager2:1.0.0'
