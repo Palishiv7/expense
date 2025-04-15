@@ -17,6 +17,7 @@ import com.moneypulse.app.R
 import com.moneypulse.app.ui.debug.DebugLogActivity
 import com.moneypulse.app.ui.privacy.PrivacyPolicyActivity
 import com.moneypulse.app.ui.settings.viewmodel.SettingsViewModel
+import com.moneypulse.app.util.PreferenceHelper
 import java.text.NumberFormat
 import java.util.Locale
 
