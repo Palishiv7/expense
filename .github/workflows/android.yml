@@ -3,8 +3,20 @@ name: Android CI
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
 
 jobs:
   build:
@@ -139,8 +151,26 @@ jobs:
         # Skip the full build and only check if the project can be evaluated
         echo "=== PROJECT EVALUATION ==="
         "${{ env.GRADLEW_PATH }}" help -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0 || echo "Project evaluation failed but continuing"
+    
+    # Decode keystore for release builds
+    - name: Decode Keystore for Release Build
+      if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.build_type == 'release'
+      run: |
+        # Decode keystore from base64 secret
+        cd "${{ env.ROOT_DIR }}"
+        
+        # Create app directory if it doesn't exist
+        mkdir -p app
+        
+        # Decode the keystore and store it in the app directory
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/moneypulse.keystore
+        
+        # Create the keystore.properties file with correct path
+        echo "storeFile=moneypulse.keystore" > keystore.properties
       
+    # Build debug APK for normal commits or PR
     - name: Build Debug APK
+      if: ${{ !startsWith(github.ref, 'refs/tags/v') && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == '') }}
       run: |
         # Always run Gradle commands from the directory containing gradlew
         cd "${{ env.ROOT_DIR }}"
@@ -169,6 +199,44 @@ jobs:
           echo "=== CHECKING FOR APK OUTPUT ==="
           find . -name "*.apk" -type f
         fi
+    
+    # Build release APK and Bundle for tags or manual trigger
+    - name: Build Release APK and Bundle
+      if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.build_type == 'release'
+      run: |
+        # Always run Gradle commands from the directory containing gradlew
+        cd "${{ env.ROOT_DIR }}"
+        echo "=== BUILDING FROM ROOT DIRECTORY ==="
+        pwd
+        ls -la
+        
+        # Set environment variables for signing
+        export KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+        export KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+        export KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+        
+        # Build Release Bundle (AAB) for Play Store
+        echo "=== BUILDING RELEASE BUNDLE (AAB) ==="
+        if [ -d "app" ]; then
+          "${{ env.GRADLEW_PATH }}" :app:bundleRelease --stacktrace -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0
+        else
+          "${{ env.GRADLEW_PATH }}" bundleRelease --stacktrace -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0
+        fi
+        
+        # Build Release APK for direct distribution
+        echo "=== BUILDING RELEASE APK ==="
+        if [ -d "app" ]; then
+          "${{ env.GRADLEW_PATH }}" :app:assembleRelease --stacktrace -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0
+        else
+          "${{ env.GRADLEW_PATH }}" assembleRelease --stacktrace -Dorg.gradle.java.home=$JAVA_HOME -PkotlinVersion=1.9.0
+        fi
+        
+        # Check for AAB and APK files
+        echo "=== CHECKING FOR BUNDLE OUTPUT ==="
+        find . -name "*.aab" -type f
+        
+        echo "=== CHECKING FOR APK OUTPUT ==="
+        find . -name "*release*.apk" -type f
       
     - name: Debug APK Output Directory
       run: |
@@ -181,29 +249,79 @@ jobs:
         echo "=== LOOKING FOR APK FILES ==="
         find . -name "*.apk" -type f
         
+        echo "=== LOOKING FOR AAB FILES ==="
+        find . -name "*.aab" -type f
+        
         # Also try to find any output files as fallback
         echo "=== OTHER OUTPUT FILES ==="
         find . -path "*/build/outputs/*" -type f | head -n 10
         
-        # Save APK path for upload (or fallback to any file in outputs)
-        APK_PATH=$(find . -name "*.apk" -type f | head -n 1)
-        if [ -z "$APK_PATH" ]; then
-          # Fallback to any file in outputs directory
-          APK_PATH=$(find . -path "*/build/outputs/*" -type f | head -n 1)
+        # Save paths for upload
+        DEBUG_APK=$(find . -name "*debug*.apk" -type f | head -n 1)
+        RELEASE_APK=$(find . -name "*release*.apk" -type f | head -n 1)
+        RELEASE_BUNDLE=$(find . -name "*.aab" -type f | head -n 1)
+        
+        # Save the paths as environment variables
+        if [ -n "$DEBUG_APK" ]; then
+          echo "DEBUG_APK=$DEBUG_APK" >> $GITHUB_ENV
         fi
         
-        if [ -n "$APK_PATH" ]; then
-          echo "Found output at: $APK_PATH"
-          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
-        else
-          # Create a dummy file if nothing found
+        if [ -n "$RELEASE_APK" ]; then
+          echo "RELEASE_APK=$RELEASE_APK" >> $GITHUB_ENV
+        fi
+        
+        if [ -n "$RELEASE_BUNDLE" ]; then
+          echo "RELEASE_BUNDLE=$RELEASE_BUNDLE" >> $GITHUB_ENV
+        fi
+        
+        # Create a dummy file if nothing found
+        if [ -z "$DEBUG_APK" ] && [ -z "$RELEASE_APK" ] && [ -z "$RELEASE_BUNDLE" ]; then
           echo "No output files found, creating fallback file"
-          echo "Build completed but no APK was generated" > build-log.txt
-          echo "APK_PATH=build-log.txt" >> $GITHUB_ENV
+          echo "Build completed but no APK or AAB was generated" > build-log.txt
+          echo "BUILD_LOG=build-log.txt" >> $GITHUB_ENV
         fi
 
-    - name: Upload Build Output
-      uses: actions/upload-artifact@master
+    # Upload Debug APK
+    - name: Upload Debug APK
+      if: env.DEBUG_APK != ''
+      uses: actions/upload-artifact@v3
       with:
-        name: build-output
-        path: ${{ env.APK_PATH || 'build-log.txt' }} 
+        name: app-debug
+        path: ${{ env.DEBUG_APK }}
+
+    # Upload Release APK
+    - name: Upload Release APK
+      if: env.RELEASE_APK != ''
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-release
+        path: ${{ env.RELEASE_APK }}
+
+    # Upload Release Bundle (AAB)
+    - name: Upload Release Bundle
+      if: env.RELEASE_BUNDLE != ''
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-release-bundle
+        path: ${{ env.RELEASE_BUNDLE }}
+
+    # Upload fallback log if no artifacts were found
+    - name: Upload Build Log
+      if: env.BUILD_LOG != ''
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-log
+        path: ${{ env.BUILD_LOG }}
+        
+    # Create GitHub Release with assets
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: |
+          ${{ env.RELEASE_BUNDLE }}
+          ${{ env.RELEASE_APK }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        generateReleaseNotes: true
+        prerelease: contains(github.ref, 'beta') || contains(github.ref, 'alpha')
+        draft: false 
