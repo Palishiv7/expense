@@ -70,12 +70,38 @@ class MoneyPulseApp : Application(), Configuration.Provider {
         val lastTimestamp = prefs.getLong("last_opened_timestamp", 0L)
         val currentTime = System.currentTimeMillis()
         
+        // Track restart count
+        val restartCount = prefs.getInt("restart_count", 0)
+        
         // Save current timestamp
-        prefs.edit().putLong("last_opened_timestamp", currentTime).apply()
+        prefs.edit()
+            .putLong("last_opened_timestamp", currentTime)
+            .apply()
         
         // If last timestamp was within 24 hours, this is likely a restart
         // rather than a fresh install or normal app open after a long time
-        return lastTimestamp > 0 && (currentTime - lastTimestamp) < 24 * 60 * 60 * 1000
+        val isRestart = lastTimestamp > 0 && (currentTime - lastTimestamp) < 24 * 60 * 60 * 1000
+        
+        if (isRestart) {
+            // Increment restart count and update the third restart flag
+            val newRestartCount = restartCount + 1
+            val isThirdRestart = newRestartCount >= 3
+            
+            prefs.edit()
+                .putInt("restart_count", newRestartCount)
+                .putBoolean("is_third_restart", isThirdRestart)
+                .apply()
+            
+            Log.d(TAG, "App restart #$newRestartCount detected")
+        } else {
+            // Reset restart count for fresh installs or opens after long time
+            prefs.edit()
+                .putInt("restart_count", 1)
+                .putBoolean("is_third_restart", false)
+                .apply()
+        }
+        
+        return isRestart
     }
     
     /**
@@ -227,9 +253,18 @@ class MoneyPulseApp : Application(), Configuration.Provider {
      * This prevents crashes during app initialization
      */
     override fun getWorkManagerConfiguration(): Configuration {
-        if (workManagerInitialized && !prefs.getBoolean("is_third_restart", false)) {
-            // We've successfully initialized WorkManager before 
-            // and this is not our problematic restart
+        val isThirdRestart = prefs.getBoolean("is_third_restart", false)
+        
+        if (isThirdRestart) {
+            Log.d(TAG, "Third+ restart detected, using minimal WorkManager configuration")
+            // On third restart, always use minimal configuration to avoid crashes
+            return Configuration.Builder()
+                .setMinimumLoggingLevel(Log.INFO)
+                .build()
+        }
+        
+        if (workManagerInitialized) {
+            // We've successfully initialized WorkManager before
             try {
                 val factory = workerFactoryProvider.get()
                 return Configuration.Builder()

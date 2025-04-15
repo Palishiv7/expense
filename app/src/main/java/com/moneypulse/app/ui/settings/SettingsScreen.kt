@@ -28,12 +28,17 @@ import com.moneypulse.app.ui.settings.viewmodel.SettingsViewModel
 import com.moneypulse.app.util.PreferenceHelper
 import java.text.NumberFormat
 import java.util.Locale
+import kotlinx.coroutines.delay
+import android.widget.Toast
 
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val isAutoTransactionEnabled by viewModel.isAutoTransaction.collectAsState()
+    val isAutoTransaction by viewModel.isAutoTransaction.collectAsState()
+    val securityEnabled by viewModel.isSecurityEnabled.collectAsState()
+    val screenCaptureBlocked by viewModel.isScreenCaptureBlocked.collectAsState()
+    val smsPermissionStatus by viewModel.smsPermissionStatus.collectAsState()
     val userIncome by viewModel.userIncome.collectAsState()
     val context = LocalContext.current
     
@@ -80,7 +85,9 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text = "Settings",
@@ -142,8 +149,6 @@ fun SettingsScreen(
         }
         
         // Transaction Mode Section with integrated SMS permission handling
-        val smsPermissionStatus by viewModel.smsPermissionStatus.collectAsState()
-        
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -197,7 +202,7 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = if (isAutoTransactionEnabled) 
+                            text = if (isAutoTransaction) 
                                     stringResource(id = R.string.transaction_mode_auto)
                                   else 
                                     stringResource(id = R.string.transaction_mode_manual),
@@ -205,14 +210,14 @@ fun SettingsScreen(
                         )
                         
                         Text(
-                            text = if (isAutoTransactionEnabled) autoModeDescription else manualModeDescription,
+                            text = if (isAutoTransaction) autoModeDescription else manualModeDescription,
                             style = MaterialTheme.typography.caption,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                     
                     Switch(
-                        checked = isAutoTransactionEnabled,
+                        checked = isAutoTransaction,
                         onCheckedChange = { viewModel.setAutoTransaction(it) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colors.primary
