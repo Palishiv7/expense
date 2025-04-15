@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -42,6 +43,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var preferenceHelper: PreferenceHelper
+    
+    // State variable to track if the permission explanation dialog is showing
+    private var showSmsPermissionExplanation by mutableStateOf(false)
 
     private val smsPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -51,6 +55,8 @@ class MainActivity : ComponentActivity() {
             checkAndRequestNotificationPermission()
         } else {
             // Handle the case where permission is denied
+            // We will proceed without SMS functionality
+            checkAndRequestNotificationPermission()
         }
     }
     
@@ -62,19 +68,44 @@ class MainActivity : ComponentActivity() {
             checkFirstLaunch()
         } else {
             // Handle notification permission denied
+            checkFirstLaunch()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        checkAndRequestSmsPermission()
+        // Show SMS permission explanation dialog on app start
+        // instead of directly requesting permissions
+        showSmsPermissionExplanationDialog()
         
         setContent {
             MoneyPulseTheme {
+                // Show SMS permission explanation dialog if needed
+                if (showSmsPermissionExplanation) {
+                    SmsPermissionExplanationDialog(
+                        onContinue = {
+                            showSmsPermissionExplanation = false
+                            checkAndRequestSmsPermission()
+                        },
+                        onSkip = {
+                            showSmsPermissionExplanation = false
+                            // Skip SMS features and move to next step
+                            checkAndRequestNotificationPermission()
+                        }
+                    )
+                }
+                
                 MainScreen()
             }
         }
+    }
+    
+    /**
+     * Shows the explanation dialog for SMS permissions
+     */
+    private fun showSmsPermissionExplanationDialog() {
+        showSmsPermissionExplanation = true
     }
     
     private fun checkAndRequestSmsPermission() {
@@ -88,6 +119,7 @@ class MainActivity : ComponentActivity() {
             }
             shouldShowRequestPermissionRationale(Manifest.permission.RECEIVE_SMS) -> {
                 // Show permission explanation dialog
+                showSmsPermissionExplanationDialog()
             }
             else -> {
                 // Request permission
@@ -132,6 +164,54 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+/**
+ * SMS Permission explanation dialog - follows Material Design guidelines
+ * and explains clearly why the app needs SMS permissions
+ */
+@Composable
+fun SmsPermissionExplanationDialog(
+    onContinue: () -> Unit,
+    onSkip: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { /* Do nothing, force user to make a choice */ },
+        title = { Text("SMS Access Required") },
+        text = { 
+            Column {
+                Text(
+                    "MoneyPulse needs access to SMS to automatically detect and categorize " +
+                    "financial transactions from your bank messages."
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "This allows the app to track your expenses without manual entry, " +
+                    "saving you time and ensuring accurate records."
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "We only process bank transaction messages and never share your SMS data " +
+                    "with third parties. All processing happens on your device.",
+                    style = MaterialTheme.typography.body2
+                )
+            }
+        },
+        confirmButton = { 
+            Button(
+                onClick = onContinue
+            ) {
+                Text("Continue")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onSkip
+            ) {
+                Text("Skip")
+            }
+        }
+    )
 }
 
 @Composable

@@ -50,6 +50,14 @@
             </intent-filter>
         </activity>
         
+        <!-- Privacy Policy Activity -->
+        <activity
+            android:name=".ui.privacy.PrivacyPolicyActivity"
+            android:exported="false"
+            android:label="Privacy Policy"
+            android:theme="@style/Theme.MoneyPulse">
+        </activity>
+        
         <!-- SMS Debug Activity for viewing log information -->
         <activity
             android:name=".ui.debug.DebugLogActivity"

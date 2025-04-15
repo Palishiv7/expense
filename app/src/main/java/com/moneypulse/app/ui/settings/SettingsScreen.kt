@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.moneypulse.app.R
 import com.moneypulse.app.ui.debug.DebugLogActivity
+import com.moneypulse.app.ui.privacy.PrivacyPolicyActivity
 import com.moneypulse.app.ui.settings.viewmodel.SettingsViewModel
 import java.text.NumberFormat
 import java.util.Locale
@@ -151,6 +152,60 @@ fun SettingsScreen(
                             checkedThumbColor = MaterialTheme.colors.primary
                         )
                     )
+                }
+            }
+        }
+        
+        // Privacy & Security Section
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            elevation = 4.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Text(
+                    text = "Privacy & Security",
+                    style = MaterialTheme.typography.h6,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                // Privacy Policy Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "Privacy Policy",
+                            style = MaterialTheme.typography.subtitle1
+                        )
+                        
+                        Text(
+                            text = "View our privacy policy and SMS data handling",
+                            style = MaterialTheme.typography.caption,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                    
+                    Button(
+                        onClick = { 
+                            val intent = Intent(context, PrivacyPolicyActivity::class.java)
+                            context.startActivity(intent)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = MaterialTheme.colors.primary
+                        )
+                    ) {
+                        Text("View", color = MaterialTheme.colors.onPrimary)
+                    }
                 }
             }
         }
